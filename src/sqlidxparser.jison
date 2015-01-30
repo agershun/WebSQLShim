@@ -544,63 +544,118 @@ uids_stmt
 	;
 
 create_view_stmt
-	:
+	: CREATE temporary VIEW if_not_exists database_table_name AS select_stmt
 	;
 	
 create_virtual_table_stmt
-	:
+	: CREATE VIRTUAL TABLE if_not_exists database_table_name USING literal module_arguments_par
 	;
 	
+module_arguments_par
+	: LPAR module_arguments RPAR 
+	;
+
+module_arguments
+	: module_arguments COMMA module_argument
+	| module_argument
+	;
+
 delete_stmt
-	:
+	: with_clause DELETE FROM qualified_table_name where
 	;
 	
+qualified_table_name 
+	: database_table_name 
+	| database_table_name INDEXED BY literal
+	| database_table_name NOT INDEXED
+	;	
+
+with_clause
+	: WITH recursive cte_tables
+	;
+
+recursive
+	: RECURSIVE
+	|
+	;
+
+cte_tables
+	: literal
+	| literal LPAR columns RPAR
+	;
+
 delete_stmt_limited
 	:
 	;
 	
 detach_stmt
-	:
+	: DETACH database literal
+		{ $$ = {statement:'DETACH', database:$3}; }
 	;
 	
 drop_index_stmt
-	:
+	: DROP TABLE if_exists database_table_name
 	;
 	
+if_exists
+	: IF EXISTS
+		{ $$ = {if_exists:true}; }
+	|
+		{ $$ = undefined; }
+	;
+
 drop_table_stmt
-	:
+	: DROP TABLE if_exists database_table_name
 	;
 	
 drop_trigger_stmt
-	:
+	: DROP TRIGGER if_exists database_table_name
 	;
 	
 drop_view_stmt
-	:
+	: DROP VIEW if_exists database_table_name
 	;
 	
 insert_stmt
-	:
+	: with insert INTO database_table_name columns_par VALUES values_list
+	| with insert INTO database_table_name columns_par select_stmt
+	| DEFAULT VALUES
 	;
 	
 pragma_stmt
-	:
+	: PRAGMA database_table_name 
+	| PRAGMA database_table_name EQ pragma_value
+	| PRAGMA database_table_name EQ LPAR pragma_value RPAR
 	;
 	
+pragma_value
+	: signed_number
+	| literal
+	| string_literal
+	;
+
 reindex_stmt
-	:
+	: REINDEX
+	| REINDEX literal
+	| REINDEX database_table_name
 	;
 	
 release_stmt
-	:
+	: RELEASE savepoint literal
 	;
 	
 rollback_stmt
-	:
+	: ROLLBACK transaction TO savepoint literal
+	: ROLLBACK transaction
 	;
 	
+savepoint
+	: SAVEPOINT
+	|
+	;
+
 savepoint_stmt
-	:
+	: SAVEPOINT literal
 	;
 	
 select_stmt
@@ -608,15 +663,59 @@ select_stmt
 	;
 	
 update_stmt
-	:
+	: with UPDATE or_rollback qualified_table_name SET column_expr_list where
 	;
-	
+
+or_rollback
+	: OR ROLLBACK
+	| OR ABORT
+	| OR REPLACE
+	| OR FAIL
+	| OR IGNORE
+	;
+
+column_expr_list
+	: column_expr_list COMMA column_expr
+	| column_expr
+	;
+
+column_expr
+	: literal EQ expr
+	;
+
 update_stmt_limited
 	:
 	;
 	
 vacuum_stmt
-	:
+	: VACUUM
 		{ $$ = {statement: 'VACUUM'}; }
 	;
 	
+expr
+	: literal_value
+	| bind_parameter
+	| literal
+	| database_table_name DOT literal
+	| unary_operator expr
+	| expr binary_operator expr
+	| literal LPAR function_args RPAR
+	| LPAR expr RPAR
+	| CAST LPAR expr AS type_name RPAR
+	| expr COLLATE literal
+	| expr not like_match expr escape_expr
+	| expr ISNULL
+	| expr NOTNULL
+	| expr NOT NULL
+	| expr IS not expr
+	| expr not BETWEEN expr AND expr
+	| expt not IN database_table_name
+	| expt not IN LPAR RPAR 
+	| expt not IN LPAR select_stmt RPAR 
+	| expt not IN LPAR expr_list RPAR 
+	| not EXISTS LPAR select_stmt RPAR
+	| LPAR select_stmt RPAR
+	| CASE expr when_then_list else END
+	| CASE when_then_list else END
+	;
+
