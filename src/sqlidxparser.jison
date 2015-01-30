@@ -273,14 +273,14 @@ sql_stmt_stmt
 /* http://www.sqlite.org/lang_altertable.html */
 
 alter_table_stmt
-	: ALTER TABLE alter_table_name alter_table_action
+	: ALTER TABLE database_table_name alter_table_action
 		{ $$ = {statement: 'ALTER TABLE'}; y.extend($$, $3); y.extend($$, $4);  }
 	;
 
-alter_table_name 
-	: name DOT name
+database_table_name 
+	: literal DOT literal
 		{ $$ = {database:$1, table:$3}; }
-	| name
+	| literal
 		{ $$ = {table:$1}; }
 	;
 
@@ -294,17 +294,18 @@ alter_table_action
 	;
 
 analyze_stmt
-	: ANALYZE name
-		{ $$ = {statement: 'ANALYZE', name: $2}; }
-	| ANALYZE name DOT name
-		{ $$ = {statement: 'ANALYZE', database:$2 , name: $4}; }
+	: ANALYZE database_table_name
+		{ $$ = {statement: 'ANALYZE'}; yy.extend($$, $2); }
 	;
 
 attach_stmt
-	: ATTACH expr AS name
-		{ $$ = {statement: 'ATTACH', expr: $2, database:$4}; }	
-	| ATTACH DATABASE expr AS name
+	: ATTACH database expr AS literal
 		{ $$ = {statement: 'ATTACH', expr: $3, database:$5}; }	
+	;
+
+database 
+	:
+	| DATABASE
 	;
 
 begin_stmt
@@ -324,15 +325,298 @@ begin_statement_type
 	;
 
 commit_stmt
-	: COMMIT TRANSACTION
-		{ $$ = {statement: 'COMMIT TRANSACTION'}; }			
-	| COMMIT
-		{ $$ = {statement: 'COMMIT TRANSACTION'}; }			
-	| END TRANSACTION
-		{ $$ = {statement: 'COMMIT TRANSACTION'}; }			
-	| END
+	: commit transaction
 		{ $$ = {statement: 'COMMIT TRANSACTION'}; }			
 	;
 
-compound_select_stmt
+commit
+	: COMMIT
+	| END
 	;
+
+transaction
+	:
+	| TRANSACTION
+	;
+
+create_index_stmt
+	: CREATE unique INDEX if_not_exists database_table_name ON literal 
+	    LPAR columns RPAR where
+	    { $$ = {statement: 'CREATE INDEX', index:$7, columns:$9 }; yy.extend($$,$2); 
+	    	yy.extend($$, $4); yy.extend($$, $5); yy.extend($$,$11);
+	    }
+	;
+
+unique
+	:
+		{ $$ = undefined; }
+	| UNIQUE
+		{ $$ = {type:'UNIQUE'}; }
+	;
+
+if_not_exists
+	:
+		{ $$ = undefined; }
+	| IF NOT EXISTS
+		{ $$ = {ifnotexists:true}; }
+	;
+
+columns
+	: columns COMMA literal
+		{ $$ = $1; $$.push($3); }
+	| literal
+		{ $$ = [$1]; }
+
+where
+	: WHERE expr
+		{ $$ = {where: $2}; }
+	|
+	;
+
+create_table_stmt
+	: CREATE temporary TABLE if_not_exists database_table_name AS select_stmt
+		{ $$ = {statement: 'CREATE TABLE', as:$7};
+			yy.extend($$,$2);
+			yy.extend($$,$4);
+			yy.extend($$,$5);
+		}
+	| CREATE temporary TABLE if_not_exists database_table_name LPAR column_defs 
+		table_constraints RPAR without_rowid
+		{ $$ = {statement: 'CREATE TABLE', column_defs: $7, constraints:$8 };
+			yy.extend($$,$2);
+			yy.extend($$,$4);
+			yy.extend($$,$5);
+			yy.extend($$,$10);
+		}
+	;
+
+without_rowid
+	: 
+	| WITHOUT ROWID
+	;
+
+temporary
+	:
+		{ $$ = undefined; }
+	|
+		{ $$ = {temporary:true}; }
+	;
+
+column_defs
+	: column_defs COMMA column_def
+		{ $$ = $1; $$.push($3); }
+	| column_def
+		{ $$ = [$1]; }
+	;
+
+column_def
+	: literal type_name column_constraints
+		{ $$ = {column:$1, constraints: $3}; yy.extend($$,$2); }
+	| literal type_name
+		{ $$ = {column:$1}; yy.extend($$,$2); }
+	;
+
+type_name
+	: names
+		{ $$ = {type: $1}; }
+	| names LPAR signed_number RPAR
+		{ $$ = {type: $1, len: $3}; }
+	| names LPAR signed_number COMMA signed_number RPAR
+		{ $$ = {type: $1, len: $3, precision:$5}; }
+	;
+
+names 
+	: names literal
+		{ $$ = $1+' '+$2; }
+	| literal
+		{ $$ =$1; }
+	;
+
+
+column_constraints
+	:	
+		{ $$ = undefined; } 
+	| column_constraints column_constraint
+		{ $$ = $1; $$.push($2); }
+	| column_constraint
+		{ $$ = [$1]; }
+	;
+
+column_constraint
+	: CONSTRAINT literal col_constraint
+		{ $$ = {constraint: $2}; yy.extend($$,$3); }
+	| col_constraint
+		{ $$ = $1; }
+	;
+
+col_constraint
+	: PRIMARY KEY asc_desc conflict_clause autoincrement
+	| NOT NULL conflict_clause
+	| UNIQUE conflict_clause
+	| CHECK LPAR expr RPAR
+	| DEFAULT signed_number
+	| DEFAULT literal_value
+	| DEFAULT LPAR expr RPAR
+	| COLLATE literal
+	| foreign_key_clause
+	;
+
+asc_desc
+	:
+	| ASC
+	| DESC
+	;
+
+autoincrement
+	: 
+	| AUTOINCREMENT
+	;
+
+
+table_constraints
+	: table_constraints table_constraint
+		{ $$ = $1; $$.push($2); }
+	| COMMA table_constraint
+		{ $$ = $2; } 
+	|
+		{ $$ = []; }
+	;
+
+table_constraint
+	: CONSTRAINT literal tab_constraint
+	| tab_constraint
+	;
+
+tab_constraint
+	: PRIMARY KEY LPAR columns RPAR conflict_clause
+	| UNIQUE LPAR columns RPAR conflict_clause
+	| CHECK LPAR expr RPAR
+	| FOREIGN KEY LPAR columns RPAR foreign_key_clause
+	;
+
+conflict_clause
+	: 
+	| ON CONFLICT ROLLBACK
+	| ON CONFLICT ABORT
+	| ON CONFLICT FAIL
+	| ON CONFLICT IGNORE
+	| ON CONFLICT REPLACE
+	;
+
+create_trigger_stmt
+	: CREATE temporary TRIGGER if_not_exists database_table_name before_after
+		delete_insert_update ON literal for_each_row when begin_trigger_end
+	;
+	
+before_after 
+	:
+	| BEFORE
+	| AFTER
+	| INSTEAD OF
+	;
+
+delete_insert_update
+	: DELETE
+	| INSERT
+	| UPDATE 
+	| UPDATE OF columns
+	;	
+
+for_each_row
+	:
+	| FOR EACH ROW
+	;
+
+begin_trigger_end
+	: BEGIN uids_stmts END
+	;
+
+uids_stmts
+	: uids_stmts uids_stmt
+	| uids_stmt
+	;
+
+uids_stmt
+	: update_stmt COMMA
+	| insert_stmt COMMA
+	| delete_stmt COMMA
+	| select_stmt COMMA
+	;
+
+create_view_stmt
+	:
+	;
+	
+create_virtual_table_stmt
+	:
+	;
+	
+delete_stmt
+	:
+	;
+	
+delete_stmt_limited
+	:
+	;
+	
+detach_stmt
+	:
+	;
+	
+drop_index_stmt
+	:
+	;
+	
+drop_table_stmt
+	:
+	;
+	
+drop_trigger_stmt
+	:
+	;
+	
+drop_view_stmt
+	:
+	;
+	
+insert_stmt
+	:
+	;
+	
+pragma_stmt
+	:
+	;
+	
+reindex_stmt
+	:
+	;
+	
+release_stmt
+	:
+	;
+	
+rollback_stmt
+	:
+	;
+	
+savepoint_stmt
+	:
+	;
+	
+select_stmt
+	:
+	;
+	
+update_stmt
+	:
+	;
+	
+update_stmt_limited
+	:
+	;
+	
+vacuum_stmt
+	:
+		{ $$ = {statement: 'VACUUM'}; }
+	;
+	
