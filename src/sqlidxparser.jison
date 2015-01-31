@@ -174,6 +174,7 @@
 (\d*[.])?\d+[eE]\d+								return 'NUMBER'
 (\d*[.])?\d+									return 'NUMBER'
 
+'~'												return 'TILDEs'
 '+'												return 'PLUS'
 '-' 											return 'MINUS'
 '*'												return 'STAR'
@@ -204,7 +205,7 @@
 
 /lex
 
-%left PLUS MINUS
+%left unary_operator
 
 %start main
 
@@ -1064,6 +1065,13 @@ group_by
 		{ $$ = {group_by: $3, having: $5}; }
 	;
 
+exprs
+	: exprs COMMA expr
+		{ $$ = $1; $$.push($1); }
+	| expr
+		{ $$ = [$1]; }
+	;
+
 values
 	: values COMMA value
 		{ $$ = $1; $$.push($3); }
@@ -1126,18 +1134,31 @@ vacuum_stmt
 	: VACUUM
 		{ $$ = {statement: 'VACUUM'}; }
 	;
-/*	
+
 expr
-	: name_value
+	: literal_value
+		{ $$ = {literal_value: $1}; }
 	| bind_parameter
+		{ $$ = {bind_parameter: $1}; }
 	| name
-	| database_table_name DOT name
+		{ $$ = {column: $1}; }
+	| name DOT name
+		{ $$ = {table: $1, column: $3}; }
+	| name DOT name DOT name
+		{ $$ = {database: $1, table: $3, column: $5}; }
 	| unary_operator expr
-	| expr binary_operator expr
-	| name LPAR function_args RPAR
+		{ $$ = {unary: $1, expr: 2}; }
+/*	| expr binary_operator expr
+		{ $$ = {binary: $2, left: $1, right: $3}; }
+*/
+	| name LPAR arguments RPAR
+		{ $$ = {function:$1, arguments: $3}; } 
 	| LPAR expr RPAR
+		{ $$ = {unary: 'PAR', expr:$2}; }
 	| CAST LPAR expr AS type_name RPAR
-	| expr COLLATE name
+		{ $$ = {unary: 'CAST', expr:$2}; yy.extend($$,$5); }
+/*	| expr COLLATE name
+		{ $$ = {unary: 'COLLATE', collate:$3};}
 	| expr not like_match expr escape_expr
 	| expr ISNULL
 	| expr NOTNULL
@@ -1146,12 +1167,57 @@ expr
 	| expr not BETWEEN expr AND expr
 	| expt not IN database_table_name
 	| expt not IN LPAR RPAR 
-	| expt not IN LPAR select_stmt RPAR 
-	| expt not IN LPAR expr_list RPAR 
+*/	| expt not IN LPAR select_stmt RPAR 
+	| expt not IN LPAR exprs RPAR 
+		{ $$ = {binary: 'IN', left: $1, right: $5}; yy.extend($$,$2); }
 	| not EXISTS LPAR select_stmt RPAR
+		{ $$ = {unary:'EXISTS', select: $4}; yy.extend($$,$1);}
 	| LPAR select_stmt RPAR
+		{ $$ = {unary:'SELECT', select:$2}; } 
 	| CASE expr when_then_list else END
+		{ $$ = {unary: 'CASE', expr: $2, whens: $3}; yy.extend($$,$4); }
 	| CASE when_then_list else END
+		{ $$ = {unary: 'WHEN', whens: $3}; yy.extend($$,$4);}
 	;
 
-*/
+not
+	:
+		{ $$ = undefined; }
+	| NOT
+		{ $$ = {not: true}; }
+	;
+
+unary_operator
+	: PLUS
+		{ $$ = 'PLUS'; }
+	| MINUS
+		{ $$ = 'MINUS'; }
+	| TILDE
+		{ $$ = 'TILDE'; }
+	;
+
+
+arguments
+	: arguments COMMA expr
+		{ $$ = $1; $$.push($3); }
+	| expr
+		{ $$ = [$1]; }
+	;
+
+when_then_list 
+	: when_then_list when_then
+		{ $$ = $1; $$.push($2); }
+	| when_then
+		{ $$ = [$1]; }
+	;
+
+when_then
+	: WHEN expr THEN expr
+		{ $$ = {when: $1, then: $4}; }
+	;	
+else
+	:
+		{ $$ = undefined; }
+	| ELSE expr
+		{ $$ = {else:$2}; }
+	;
