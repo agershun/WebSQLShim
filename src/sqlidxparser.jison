@@ -171,8 +171,8 @@
 'WITH'			return 'WITH'
 'WITHOUT'		return 'WITHOUT'
 
-(\d*[.])?\d+[eE]\d+								return 'NUMBER'
-(\d*[.])?\d+									return 'NUMBER'
+[-]?(\d*[.])?\d+[eE]\d+							return 'NUMBER'
+[-]?(\d*[.])?\d+								return 'NUMBER'
 
 '~'												return 'TILDEs'
 '+'												return 'PLUS'
@@ -205,7 +205,14 @@
 
 /lex
 
-%left unary_operator
+%left COLLATE
+%left ISNULL
+%left NOTNULL
+%left IS 
+%left binary_operator 
+%left unary_operator 
+%left not
+
 
 %start main
 
@@ -216,25 +223,72 @@ name
 		{ $$ = $1; }
 	;
 
+signed_number
+	: NUMBER
+		{ $$ = $1; }
+	;
+
+string_literal
+	: STRING
+		{ $$ = $1; }
+	;
+
+database_table_name 
+	: name DOT name
+		{ $$ = {database:$1, table:$3}; }
+	| name
+		{ $$ = {table:$1}; }
+	;
+
+database_pragma_name 
+	: name DOT name
+		{ $$ = {database:$1, pragma:$3}; }
+	| name
+		{ $$ = {pragma:$1}; }
+	;
+
+database_index_name 
+	: name DOT name
+		{ $$ = {database:$1, index:$3}; }
+	| name
+		{ $$ = {index:$1}; }
+	;
+
+database_trigger_name 
+	: name DOT name
+		{ $$ = {database:$1, trigger:$3}; }
+	| name
+		{ $$ = {trigger:$1}; }
+	;
+
+database_view_name 
+	: name DOT name
+		{ $$ = {database:$1, view:$3}; }
+	| name
+		{ $$ = {view:$1}; }
+	;
+
 main
 	: sql_stmt_list EOF
-		{ $$ = $1; 
+		{ 
+			$$ = $1; 
 			console.log($$);
+			return $$;
 		}
 	;
 
 sql_stmt_list
-	: sql_stmt_list SEMICOLON sql_stmt
-		{ $$ = $1; $$.push($3); }
+	: sql_stmt_list SEMICOLON sql_stmt 
+		{ $$ = $1; if($3) $$.push($3); }
 	| sql_stmt
 		{ $$ = [$1]; }
-	|
-		{ $$ = undefined; } 
 	;
 
 sql_stmt
 	: sql_stmt_explain sql_stmt_stmt
 		{ $$ = $2; yy.extend($$, $1); }
+	| 
+		{ $$ = undefined; }
 	;
 
 explain_stmt
@@ -287,47 +341,10 @@ alter_table_stmt
 		yy.extend($$, $3); yy.extend($$, $4);  }
 	;
 
-database_table_name 
-	: name DOT name
-		{ $$ = {database:$1, table:$3}; }
-	| name
-		{ $$ = {table:$1}; }
-	;
-
-database_pragma_name 
-	: name DOT name
-		{ $$ = {database:$1, pragma:$3}; }
-	| name
-		{ $$ = {pragma:$1}; }
-	;
-
-database_index_name 
-	: name DOT name
-		{ $$ = {database:$1, index:$3}; }
-	| name
-		{ $$ = {index:$1}; }
-	;
-
-database_trigger_name 
-	: name DOT name
-		{ $$ = {database:$1, trigger:$3}; }
-	| name
-		{ $$ = {trigger:$1}; }
-	;
-
-database_view_name 
-	: name DOT name
-		{ $$ = {database:$1, view:$3}; }
-	| name
-		{ $$ = {view:$1}; }
-	;
-
 alter_table_action
 	: RENAME TO name
 		{ $$ = {action: 'RENAME TO', new_table:$3}; }
 	| ADD COLUMN column_def
-		{ $$ = {action: 'ADD COLUMN', column_def:$3}; }
-	| ADD column_def
 		{ $$ = {action: 'ADD COLUMN', column_def:$3}; }
 	;
 
@@ -418,6 +435,12 @@ where
 	|
 	;
 
+when
+	: WHEN expr
+		{ $$ = {when: $2}; }
+	|
+	;
+
 create_table_stmt
 	: CREATE temporary TABLE if_not_exists database_table_name AS select_stmt
 		{ $$ = {statement: 'CREATE TABLE', select:$7};
@@ -464,11 +487,11 @@ column_def
 
 type_name
 	: names
-		{ $$ = {type: $1}; }
+		{ $$ = {type: $1.toUpperCase()}; }
 	| names LPAR signed_number RPAR
-		{ $$ = {type: $1, precision: $3}; }
+		{ $$ = {type: $1.toUpperCase(), precision: $3}; }
 	| names LPAR signed_number COMMA signed_number RPAR
-		{ $$ = {type: $1, precision: $3, scale:$5}; }
+		{ $$ = {type: $1.toUpperCase(), precision: $3, scale:$5}; }
 	;
 
 names 
@@ -505,7 +528,7 @@ col_constraint
 		{ $$ = {type: 'CHECK', expr: $3}; }
 	| DEFAULT signed_number
 		{ $$ = {type: 'DEFAULT', number: $2}; }
-	| DEFAULT name_value
+	| DEFAULT name
 		{ $$ = {type: 'DEFAULT', value: $2}; }
 	| DEFAULT LPAR expr RPAR
 		{ $$ = {type: 'DEFAULT', expr: $3}; }
@@ -689,12 +712,20 @@ module_arguments
 	;
 
 delete_stmt
-	: with_clause DELETE FROM qualified_table_name where limit_clause
+	: DELETE FROM qualified_table_name where limit_clause
+		{ 
+			$$ = {statement:'DELETE'};
+			yy.extend($$,$3);
+			yy.extend($$,$4);
+			yy.extend($$,$5);
+		}
+	| with DELETE FROM qualified_table_name where limit_clause
 		{ 
 			$$ = {statement:'DELETE'};
 			yy.extend($$,$1);
 			yy.extend($$,$4);
 			yy.extend($$,$5);
+			yy.extend($$,$6);
 		}
 	;
 
@@ -713,7 +744,7 @@ indexed
 		{ $$ = {not_indexed:true}; }
 	;
 
-with_clause
+with
 	: WITH recursive cte_tables
 		{ $$ = {with: $3}; yy.extend($$,$2); }
 	;
@@ -776,7 +807,7 @@ ordering_term
 	;
 detach_stmt
 	: DETACH name
-		{ $$ = {statement:'DETACH', database:$3}; }
+		{ $$ = {statement:'DETACH', database:$2}; }
 	| DETACH DATABASE name
 		{ $$ = {statement:'DETACH', database:$3}; }
 	;
@@ -836,6 +867,14 @@ insert_stmt
 			yy.extend($$,$5);
 			yy.extend($$,$6);
 		}
+
+	| insert_action INTO database_table_name columns_par insert_values
+		{ 
+			$$ = {statement: 'INSERT', action: $1};
+			yy.extend($$,$3);
+			yy.extend($$,$4);
+			yy.extend($$,$5);
+		}
 	;
 
 insert_action
@@ -856,7 +895,7 @@ insert_action
 	;
 
 insert_values
-	: VALUES values_list
+	: VALUES values
 		{ $$ = {values: $2}; }
 	| select_stmt
 		{ $$ = {select:$1}; }
@@ -924,6 +963,11 @@ select_stmt
 			$$ = {statement: 'SELECT', selects: $2};
 			yy.extend($$,$3);
 		}
+	| compound_selects limit_clause 
+		{ 
+			$$ = {statement: 'SELECT', selects: $1};
+			yy.extend($$,$2);
+		}
 	;
 
 compound_selects
@@ -953,9 +997,9 @@ select
 			yy.extend($$,$5);
 			yy.extend($$,$6);
 		}
-	| VALUES values
+/*	| VALUES values
 		{ $$ = {values: $2}; }
-	;
+*/	;
 
 distinct_all
 	:
@@ -1084,11 +1128,11 @@ values
 
 value
 	: LPAR subvalues RPAR
-		{ $$ = {}}
+		{ $$ = $2; }
 	;
 
 subvalues
-	: subvalues COMMA expt
+	: subvalues COMMA expr
 		{ $$ = $1; $$.push($3); }
 	| expr
 		{ $$ = [$1]; }
@@ -1102,6 +1146,12 @@ update_stmt
 			yy.extend($$,$1);
 			yy.extend($$,$3);
 			yy.extend($$,$6);
+		}
+	| update_action qualified_table_name SET column_expr_list where limit_clause
+		{ 
+			$$ = {statement: 'UPDATE', action: $1, set: $4};
+			yy.extend($$,$2);
+			yy.extend($$,$5);
 		}
 	;
 
@@ -1139,9 +1189,10 @@ vacuum_stmt
 	;
 
 
+
 expr
 	: literal_value
-		{ $$ = {literal_value: $1}; }
+		{ $$ = $1; }
 	| bind_parameter
 		{ $$ = {bind_parameter: $1}; }
 	| name
@@ -1151,39 +1202,52 @@ expr
 	| name DOT name DOT name
 		{ $$ = {database: $1, table: $3, column: $5}; }
 	| unary_operator expr
-		{ $$ = {unary: $1, expr: 2}; }
-/*	| expr binary_operator expr
-		{ $$ = {binary: $2, left: $1, right: $3}; }
-*/
+		{ $$ = {op: $1, expr: $2}; }
+	| expr binary_operator expr
+		{ $$ = {op: $2, left: $1, right: $3}; }
+
 	| name LPAR arguments RPAR
 		{ $$ = {function:$1, arguments: $3}; } 
 	| LPAR expr RPAR
-		{ $$ = {unary: 'PAR', expr:$2}; }
+		{ $$ = {op: 'PAR', expr:$2}; }
 	| CAST LPAR expr AS type_name RPAR
-		{ $$ = {unary: 'CAST', expr:$2}; yy.extend($$,$5); }
-/*
+		{ $$ = {op: 'CAST', expr:$2}; yy.extend($$,$5); }
+
 	| expr COLLATE name
-		{ $$ = {unary: 'COLLATE', collate:$3};}
-	| expr not like_match expr escape_expr
+		{ $$ = {op: 'COLLATE', left: $1, right:$3};}
 	| expr ISNULL
+		{ $$ = {op: 'ISNULL', expr:$1}; }
 	| expr NOTNULL
-	| expr NOT NULL
+		{ $$ = {op: 'NOTNULL', expr:$1}; }
+/*	| expr NOT NULL
+		{ $$ = {op: 'NOTNULL', expr:$1}; }
 	| expr IS not expr
+	| expr not like_match expr escape_expr
 	| expr not BETWEEN expr AND expr
-	| expt not IN database_table_name
-	| expt not IN LPAR RPAR 
 */
+	| expt not IN database_table_name
+		{ $$ = {op: 'IN', expr: $1}; yy.extend($$,$2); yy.extend($$,$4);}
+	| expt not IN LPAR RPAR 
+		{ $$ = {op: 'IN', expr: $1}; yy.extend($$,$2); yy.extend($$,$4);}
 	| expt not IN LPAR select_stmt RPAR 
+		{ $$ = {op: 'IN', expr: $1, select: $5}; yy.extend($$,$2); }
 	| expt not IN LPAR exprs RPAR 
-		{ $$ = {binary: 'IN', left: $1, right: $5}; yy.extend($$,$2); }
+		{ $$ = {op: 'IN', expr: $1, exprs: $5}; yy.extend($$,$2); }
 	| not EXISTS LPAR select_stmt RPAR
-		{ $$ = {unary:'EXISTS', select: $4}; yy.extend($$,$1);}
+		{ $$ = {op:'EXISTS', select: $4}; yy.extend($$,$1);}
 	| LPAR select_stmt RPAR
-		{ $$ = {unary:'SELECT', select:$2}; } 
+		{ $$ = {op:'SELECT', select:$2}; } 
 	| CASE expr when_then_list else END
-		{ $$ = {unary: 'CASE', expr: $2, whens: $3}; yy.extend($$,$4); }
+		{ $$ = {op: 'CASE', expr: $2, whens: $3}; yy.extend($$,$4); }
 	| CASE when_then_list else END
-		{ $$ = {unary: 'WHEN', whens: $3}; yy.extend($$,$4);}
+		{ $$ = {op: 'WHEN', whens: $3}; yy.extend($$,$4);}
+	;
+
+literal_value
+	: signed_number
+		{ $$ = {type:'number', number:$1}; }
+	| string_literal
+		{ $$ = {type:'string', string: $1}}
 	;
 
 not
@@ -1195,14 +1259,24 @@ not
 
 unary_operator
 	: PLUS
+		{ $$ = 'UNIPLUS'; }
+	| MINUS
+		{ $$ = 'UNIMINUS'; }
+	| TILDE
+		{ $$ = 'UNITILDE'; }
+	;
+/*
+binary_operator
+	: PLUS
 		{ $$ = 'PLUS'; }
 	| MINUS
 		{ $$ = 'MINUS'; }
-	| TILDE
-		{ $$ = 'TILDE'; }
+	| STAR
+		{ $$ = 'MULTIPLY'; }
+	| SLASH
+		{ $$ = 'DIVIDE'; }
 	;
-
-
+*/
 arguments
 	: arguments COMMA expr
 		{ $$ = $1; $$.push($3); }
