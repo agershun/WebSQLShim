@@ -910,15 +910,42 @@ savepoint_stmt
 		{ $$ = {statement: 'SAVEPOINT', savepoint: $3}; }
 	;
 	
-/* 
 select_stmt
-	: SELECT 
+	: with_select compound_selects order_select limit_select 
+	| compound_select order_select limit_select 
 	;
-*/
 
+with_select
+	: WITH common_table_expressions 
+	| WITH RECURSIVE common_table_expressions 
+	;
+
+compound_selects
+	: compound_selects compount_operator select
+	| select
+	;
+
+compound_operator
+	: UNION
+	| UNION ALL
+	| INTERSECT
+	| EXCEPT
+	;
+
+order_select
+	:
+	| ORDER BY ordering_terms
+	;
+
+limit_select
+	:
+	| LIMIT expr 
+	| LIMIT expr OFFSET expr
+	| LIMIT expr COMMA expr
+	;
 
 update_stmt
-	: with update_action qualified_table_name SET column_expr_list where
+	: with update_action qualified_table_name SET column_expr_list where limit_clause
 		{ 
 			$$ = {statement: 'UPDATE', action: $2, set: $5};
 			yy.extend($$,$1);
@@ -948,16 +975,12 @@ column_expr_list
 		{ $$ = [$1]; }
 	;
 
-/*
 
 column_expr
 	: name EQ expr
+		{ $$ = {column:$1, expr: $3}; }
 	;
 
-update_stmt_limited
-	:
-	;
-*/
 	
 vacuum_stmt
 	: VACUUM
