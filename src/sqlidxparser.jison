@@ -31,7 +31,7 @@
  * Project      : SQLidx: a JavaScript WebSQL shim over IndexedDB
  *                https://github.com/agershun/sqlidx
  * Developed by : Andrey Gerhsun, agershun@gmail.com
- 				  Nolan Lowson, nolan@nolanlawson.com
+ 				  Nolan Lawson, nolan@nolanlawson.com
  */
 
 %lex
