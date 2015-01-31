@@ -1,10 +1,9 @@
 # SQLidx - WebSQL shim over IndexedDB
 
-Version 0.0.0 (27.01.2015 - ...)
+Version 0.0.1 (31.01.2015)
 
-This is a test repository to check, if it is possible
-to create a WebSQL (SQLite) shim over IndexedDB.
+SQLite language [Jison grammar file](https://github.com/agershun/sqlidx/blob/master/src/sqlidxparser.jison) and parser.
 
-This repository will include SQLite parser grammar.
 
-(c) 2015 Andrey Gerhsun
+
+(c) 2015 Andrey Gerhsun, Nolad Lowson
