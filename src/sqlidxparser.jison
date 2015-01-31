@@ -696,14 +696,18 @@ delete_stmt
 
 	
 qualified_table_name 
-	: database_table_name 
-		{ $$ = $1; }
-	| database_table_name INDEXED BY name
-		{ $$ = $1; yy.extend($$, {indexed_by:$4}); }
-	| database_table_name NOT INDEXED
-		{ $$ = $1; yy.extend($$, {not_indexed:true}); }
+	: database_table_name indexed
+		{ $$ = $1; yy.extend($$, $2); }
 	;	
 
+indexed
+	: 
+		{ $$ = undefined; }
+	| INDEXED BY name
+		{ $$ = {indexed_by:$4}; }
+	| NOT INDEXED
+		{ $$ = {not_indexed:true}; }
+	;
 
 with_clause
 	: WITH recursive cte_tables
@@ -909,40 +913,176 @@ savepoint_stmt
 	: SAVEPOINT name
 		{ $$ = {statement: 'SAVEPOINT', savepoint: $3}; }
 	;
-	
-select_stmt
-	: with_select compound_selects order_select limit_select 
-	| compound_select order_select limit_select 
-	;
 
-with_select
-	: WITH common_table_expressions 
-	| WITH RECURSIVE common_table_expressions 
+select_stmt
+	: with compound_selects limit_clause 
+		{ 
+			$$ = {statement: 'SELECT', selects: $2};
+			yy.extend($$,$3);
+		}
 	;
 
 compound_selects
 	: compound_selects compount_operator select
+		{ $$ = $1; yy.extend($3,{compound:$2}); $$.push($3); }
 	| select
+		{ $$ = [$1]; }
 	;
 
 compound_operator
 	: UNION
+		{ $$ = 'UNION'; }
 	| UNION ALL
+		{ $$ = 'UNION ALL'; }
 	| INTERSECT
+		{ $$ = 'INTERSECT'; }
 	| EXCEPT
+		{ $$ = 'EXCEPT'; }
 	;
 
-order_select
-	:
-	| ORDER BY ordering_terms
+select
+	: SELECT distinct_all result_columns from where group_by
+		{ 
+			$$ = {columns:$3};
+			yy.extend($$,$2);
+			yy.extend($$,$4);
+			yy.extend($$,$5);
+			yy.extend($$,$6);
+		}
+	| VALUES values
+		{ $$ = {values: $2}; }
 	;
 
-limit_select
+distinct_all
 	:
-	| LIMIT expr 
-	| LIMIT expr OFFSET expr
-	| LIMIT expr COMMA expr
+		{ $$ = undefined; }
+	| DISTINCT
+		{ $$ = {distinct:true}; }
+	| ALL
+		{ $$ = {all:true}; }
 	;
+
+result_columns
+	: result_columns COMMA result_column
+		{ $$ = $1; $$.push($3); }
+	| result_column
+		{ $$ = [$1]; }
+	;
+
+result_column
+	: STAR
+		{ $$ = {star:true}; }
+	| name DOT STAR
+		{ $$ = {table: $1, star:true}; }
+	| expr alias
+		{ $$ = {expr: $1}; yy.extend($$,$2);  }
+	;
+
+alias
+	:
+		{ $$ = undefined;}
+	| name
+		{ $$ = {alias: $1};}
+	| AS name
+		{ $$ = {alias: $2};}
+	;
+
+from
+	: 
+		{ $$ = undefined; }
+/*	| FROM table_or_subqueries
+		{ $$ = {from:$2}; }
+*/	| FROM join_clause
+		{ $$ = {from:$2}; }
+	;
+/*
+table_or_subqueries
+	: table_or_subqueries COMMA table_or_subquery
+		{ $$ = $1; $$.push($3); }
+	| table_or_subquery
+		{ $$ = [$1]; }
+	;
+*/
+table_or_subquery
+	: database_table_name alias indexed
+		{ $$ = $1; yy.extend($$,$2); yy.extend($$,$3); }
+/*	| LPAR table_or_subqueries RPAR
+		{ $$ = {tabsubs: $2}; }
+*/	| LPAR join_clause RPAR
+		{ $$ = {join:$2}; }
+	| LPAR select_stmt RPAR alias
+		{ $$ = {select: $2}; yy.extend($2,$4); }
+	; 
+
+join_clause
+	: table_or_subquery
+		{ $$ = [$1]; }
+	| join_clause join_operator table_or_subquery join_constraint
+		{ 
+			yy.extend($3,$2);
+			yy.extend($3,$4);
+			$$.push($3);
+		}
+	;
+join_operator
+	: COMMA
+		{ $$ = {join_type: 'CROSS'}; } 
+	| join_type JOIN
+		{ $$ = $1; } 
+	| NATURAL join_type JOIN
+		{ $$ = $1; yy.extend($$, {natural:true}); } 
+	;
+
+join_type
+	: 
+		{ $$ = {join_type: 'INNER'}; }
+	| LEFT OUTER
+		{ $$ = {join_type: 'LEFT'}; }
+	| LEFT
+		{ $$ = {join_type: 'LEFT'}; }
+	| INNER
+		{ $$ = {join_type: 'INNER'}; }
+	| CROSS
+		{ $$ = {join_type: 'CROSS'}; }
+	;
+
+
+join_constraint
+	:
+		{ $$ = undefined; } 
+	| ON expr
+		{ $$ = {on: $2}; }
+	| USING LPAR columns RPAR
+		{ $$ = {using: $3}; }
+	;
+
+group_by
+	:
+	| GROUP BY exprs
+		{ $$ = {group_by: $3}; }
+	| GROUP BY exprs HAVING expr	
+		{ $$ = {group_by: $3, having: $5}; }
+	;
+
+values
+	: values COMMA value
+		{ $$ = $1; $$.push($3); }
+	| value
+		{ $$ = [$1]; }
+	;
+
+value
+	: LPAR subvalues RPAR
+		{ $$ = {}}
+	;
+
+subvalues
+	: subvalues COMMA expt
+		{ $$ = $1; $$.push($3); }
+	| expr
+		{ $$ = [$1]; }
+	;
+
 
 update_stmt
 	: with update_action qualified_table_name SET column_expr_list where limit_clause
