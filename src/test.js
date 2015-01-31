@@ -1,20 +1,9 @@
 
-var parser = require("./sqlidxparser.js").parser;
+var parser = require("./start.js");
 var fs = require('fs');
 
-// Utility for parser
-parser.yy.extend = function (a,b){
-    if(typeof a == 'undefined') a = {};
-    for(key in b) {
-        if(b.hasOwnProperty(key)) {
-            a[key] = b[key];
-        }
-    }
-    return a;
-};
+var sql = fs.readFileSync('chinsmall.sql').toString();
 
-var sql = fs.readFileSync('test.sql').toString();
-
-var res = parser.parse(sql);
+var res = parser.parsesql(sql);
 
 console.log(res);

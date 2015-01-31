@@ -23,7 +23,7 @@
 			SELECT * FROM one; \
 			';
 //	console.log(parser.parse(sql).pop());
-	var sql = 'SELECT +one';
-	console.log(parser.parse(sql).pop().selects[0].columns[0].expr);
+	var sql = 'SELECT 1+2*3+4';
+	console.log(parser.parsesql(sql).pop().selects[0].columns[0].expr);
 
 </script>

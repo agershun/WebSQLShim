@@ -38,13 +38,14 @@
 %options case-insensitive
 %%
 
-(['](\\.|[^']|\\\')*?['])+                       return 'QLITERAL'
-(["](\\.|[^"]|\\\")*?["])+                       return 'STRING'
+\[([^\]])*?\]									return 'BRALITERAL'
+(['](\\.|[^']|\\\')*?['])+                  	return 'QLITERAL'
+(["](\\.|[^"]|\\\")*?["])+                    	return 'STRING'
 
 
 "--"(.*?)($|\r\n|\r|\n)							/* skip -- comments */
 
-\s+   									/* skip whitespace */
+\s+   											/* skip whitespace */
 
 'ABORT'			return 'ABORT'
 'ACTION'		return 'ACTION'
@@ -179,7 +180,9 @@
 '-' 											return 'MINUS'
 '*'												return 'STAR'
 '/'												return 'SLASH'
-'%'												return 'MODULO'
+'%'												return 'REM'
+'>>'											return 'RSHIFT'
+'<<'											return 'LSHIFT'
 '<>'											return 'NE'
 '!='											return 'NE'
 '>='											return 'GE'
@@ -187,8 +190,12 @@
 '<='											return 'LE'
 '<'												return 'LT'
 '='												return 'EQ'
+'&'												return 'BITAND'
+'|'												return 'BITOR'
+
 '('												return 'LPAR'
 ')'												return 'RPAR'
+
 
 '.'												return 'DOT'
 ','												return 'COMMA'
@@ -205,13 +212,20 @@
 
 /lex
 
+/* %left unary_operator binary_operator  */
+
+%left OR
+%left AND
+%right NOT
+%left IS MATCH LIKE BETWEEN IN ISNULL NOTNULL NE EQ
+%left GT LE LT GE
+%right ESCAPE
+%left BITAND BITOR LSHIFT RSHIFT
+$left PLUS MINUS
+%left STAR SLASH REM
+%left CONCAT
 %left COLLATE
-%left ISNULL
-%left NOTNULL
-%left IS 
-%left binary_operator 
-%left unary_operator 
-%left not
+%right BITNOT
 
 
 %start main
@@ -221,6 +235,8 @@
 name
 	: LITERAL
 		{ $$ = $1; }
+	| BRALITERAL
+		{ $$ = $1.substr(1,$1.length-2); }	
 	;
 
 signed_number
@@ -272,7 +288,6 @@ main
 	: sql_stmt_list EOF
 		{ 
 			$$ = $1; 
-			console.log($$);
 			return $$;
 		}
 	;
@@ -566,7 +581,7 @@ tab_constraints
 	: tab_constraints COMMA table_constraint
 		{ $$ = $1; $$.push($3); }
 	| table_constraint
-		{ $$ = [$2]; } 
+		{ $$ = [$1]; } 
 	;
 
 table_constraint
@@ -585,6 +600,21 @@ tab_constraint
 		{ $$ = {type:'CHECK', expr: $3}; }
 	| FOREIGN KEY LPAR columns RPAR foreign_key_clause
 		{ $$ = {type:'FOREIGN KEY', columns: $4}; yy.extend($$, $6); }
+	;
+
+foreign_key_clause
+	: REFERENCES name LPAR columns RPAR on_foreign_key_clause
+	;
+
+on_foreign_key_clause
+	:
+		{ $$ = null; }
+	| ON DELETE NO ACTION
+		{ $$ = null; }
+	| ON UPDATE NO ACTION
+		{$$ = null; }
+	| ON DELETE NO ACTION ON UPDATE NO ACTION
+		{$$ = null; }
 	;
 
 conflict_clause
@@ -1201,10 +1231,33 @@ expr
 		{ $$ = {table: $1, column: $3}; }
 	| name DOT name DOT name
 		{ $$ = {database: $1, table: $3, column: $5}; }
-	| unary_operator expr
-		{ $$ = {op: $1, expr: $2}; }
-	| expr binary_operator expr
-		{ $$ = {op: $2, left: $1, right: $3}; }
+
+	| PLUS expr
+		{ $$ = {op: 'UNIPLUS', expr: $2}; }
+	| MINUS expr
+		{ $$ = {op: 'UNIMINUS', expr: $2}; }
+
+	| expr PLUS expr
+		{ $$ = {op: 'PLUS', left: $1, right: $3}; }
+	| expr MINUS expr
+		{ $$ = {op: 'MINUS', left: $1, right: $3}; }
+	| expr STAR expr
+		{ $$ = {op: 'MULTIPLY', left: $1, right: $3}; }
+	| expr SLASH expr
+		{ $$ = {op: 'DIVIDE', left: $1, right: $3}; }
+	| expr REM expr
+		{ $$ = {op: 'REM', left: $1, right: $3}; }
+
+	| expr LSHIFT expr
+		{ $$ = {op: 'LSHIFT', left: $1, right: $3}; }
+	| expr RSHIFT expr
+		{ $$ = {op: 'RSHIFT', left: $1, right: $3}; }
+
+	| expr AND expr
+		{ $$ = {op: 'AND', left: $1, right: $3}; }
+	| expr OR expr
+		{ $$ = {op: 'OR', left: $1, right: $3}; }
+
 
 	| name LPAR arguments RPAR
 		{ $$ = {function:$1, arguments: $3}; } 
@@ -1219,6 +1272,7 @@ expr
 		{ $$ = {op: 'ISNULL', expr:$1}; }
 	| expr NOTNULL
 		{ $$ = {op: 'NOTNULL', expr:$1}; }
+
 /*	| expr NOT NULL
 		{ $$ = {op: 'NOTNULL', expr:$1}; }
 	| expr IS not expr
@@ -1256,7 +1310,7 @@ not
 	| NOT
 		{ $$ = {not: true}; }
 	;
-
+/*
 unary_operator
 	: PLUS
 		{ $$ = 'UNIPLUS'; }
@@ -1265,7 +1319,7 @@ unary_operator
 	| TILDE
 		{ $$ = 'UNITILDE'; }
 	;
-/*
+
 binary_operator
 	: PLUS
 		{ $$ = 'PLUS'; }
@@ -1277,6 +1331,7 @@ binary_operator
 		{ $$ = 'DIVIDE'; }
 	;
 */
+
 arguments
 	: arguments COMMA expr
 		{ $$ = $1; $$.push($3); }
