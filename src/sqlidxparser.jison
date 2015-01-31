@@ -42,9 +42,9 @@
 (["](\\.|[^"]|\\\")*?["])+                       return 'STRING'
 
 
-"--"(.*?)($|\r\n|\r|\n)							return /* return 'COMMENT' */
+"--"(.*?)($|\r\n|\r|\n)							/* skip -- comments */
 
-\s+          	/* skip whitespace */
+\s+          									/* skip whitespace */
 
 'ABORT'			return 'ABORT'
 'ACTION'		return 'ACTION'
@@ -210,17 +210,18 @@
 
 %%
 
-literal
+name
 	: LITERAL
 		{ $$ = $1; }
 	;
 
 main
 	: sql_stmt_list EOF
-		{ $$ = $1; }
+		{ $$ = $1; 
+			console.log($$);
+		}
 	;
 
-/* http://www.sqlite.org/lang.html */
 sql_stmt_list
 	: sql_stmt_list SEMICOLON sql_stmt
 		{ $$ = $1; $$.push($3); }
@@ -230,16 +231,19 @@ sql_stmt_list
 		{ $$ = undefined; } 
 	;
 
+
 sql_stmt
 	: sql_stmt_explain sql_stmt_stmt
-		{ $$ = $2; y.extend($$, $1); }
+		{ $$ = $2; yy.extend($$, $1); }
 	;
 
 explain_stmt
-	: EXPLAIN sql_stmt
-		{ $$ = $2; yy.extend($$, {explain:true}); }
-	| EXPLAIN QUERY PLAN sql_stmt
-		{ $$ = $4; yy.extend($$, {explain:true}); }
+	:
+		{ $$ = undefined; }
+	| EXPLAIN
+		{ $$ = {explain:true}; }
+	| EXPLAIN QUERY PLAN
+		{ $$ = {explain:true}; }
 	;
 
 sql_stmt
@@ -260,7 +264,6 @@ sql_stmt
 	| drop_table_stmt
 	| drop_trigger_stmt
 	| drop_view_stmt
-	| explain_stmt
 	| insert_stmt
 	| pragma_stmt
 	| reindex_stmt
@@ -273,18 +276,17 @@ sql_stmt
 	| vacuum_stmt
 	;
 
-/* http://www.sqlite.org/lang_altertable.html */
 
 alter_table_stmt
 	: ALTER TABLE database_table_name alter_table_action
 		{ $$ = {statement: 'ALTER TABLE'}; 
-		y.extend($$, $3); y.extend($$, $4);  }
+		yy.extend($$, $3); yy.extend($$, $4);  }
 	;
 
 database_table_name 
-	: literal DOT literal
+	: name DOT name
 		{ $$ = {database:$1, table:$3}; }
-	| literal
+	| name
 		{ $$ = {table:$1}; }
 	;
 
@@ -292,9 +294,9 @@ alter_table_action
 	: RENAME TO name
 		{ $$ = {action: 'RENAME TO', new_table:$3}; }
 	| ADD COLUMN column_def
-		{ $$ = {action: 'ADD COLUMN', columndef:$3}; }
+		{ $$ = {action: 'ADD COLUMN', column_def:$3}; }
 	| ADD column_def
-		{ $$ = {action: 'ADD COLUMN', columndef:$3}; }
+		{ $$ = {action: 'ADD COLUMN', column_def:$3}; }
 	;
 
 analyze_stmt
@@ -302,8 +304,9 @@ analyze_stmt
 		{ $$ = {statement: 'ANALYZE'}; yy.extend($$, $2); }
 	;
 
+
 attach_stmt
-	: ATTACH database expr AS literal
+	: ATTACH database expr AS name
 		{ $$ = {statement: 'ATTACH', expr: $3, database:$5}; }	
 	;
 
@@ -312,12 +315,13 @@ database
 	| DATABASE
 	;
 
+
 begin_stmt
-	: BEGIN begin_stmt_type TRANSACTION
+	: BEGIN deferred_exclusive TRANSACTION
 		{ $$ = {statement: 'BEGIN TRANSACTION', type: $2}; }			
 	;
 
-begin_statement_type
+deferred_exclusive
 	:
 		{ $$ = undefined; }
 	| DEFERRED
@@ -327,6 +331,7 @@ begin_statement_type
 	| EXCLUSIVE
 		{ $$ = 'EXCLUSIVE'; }
 	;
+
 
 commit_stmt
 	: commit transaction
@@ -344,31 +349,34 @@ transaction
 	;
 
 create_index_stmt
-	: CREATE unique INDEX if_not_exists database_table_name ON literal 
+	: CREATE INDEX if_not_exists database_table_name ON name 
 	    LPAR columns RPAR where
-	    { $$ = {statement: 'CREATE INDEX', index:$7, columns:$9 }; yy.extend($$,$2); 
-	    	yy.extend($$, $4); yy.extend($$, $5); yy.extend($$,$11);
+	    { $$ = {statement: 'CREATE INDEX', table:$6, columns:$8 }; 
+	    	yy.extend($$, $3); 
+	    	yy.extend($$, $4); 
+	    	yy.extend($$,$10);
 	    }
-	;
-
-unique
-	:
-		{ $$ = undefined; }
-	| UNIQUE
-		{ $$ = {type:'UNIQUE'}; }
+	| CREATE UNIQUE INDEX if_not_exists database_table_name ON name 
+	    LPAR columns RPAR where
+	    { $$ = {statement: 'CREATE INDEX', unique:true, table:$7, columns:$9 }; 
+	    	yy.extend($$, $2); 
+	    	yy.extend($$, $4); 
+	    	yy.extend($$, $5); 
+	    	yy.extend($$,$11);
+	    }
 	;
 
 if_not_exists
 	:
 		{ $$ = undefined; }
 	| IF NOT EXISTS
-		{ $$ = {ifnotexists:true}; }
+		{ $$ = {if_not_exists: true}; }
 	;
 
 columns
-	: columns COMMA literal
+	: columns COMMA name
 		{ $$ = $1; $$.push($3); }
-	| literal
+	| name
 		{ $$ = [$1]; }
 	;
 
@@ -380,30 +388,31 @@ where
 
 create_table_stmt
 	: CREATE temporary TABLE if_not_exists database_table_name AS select_stmt
-		{ $$ = {statement: 'CREATE TABLE', as:$7};
+		{ $$ = {statement: 'CREATE TABLE', select:$7};
 			yy.extend($$,$2);
 			yy.extend($$,$4);
 			yy.extend($$,$5);
 		}
 	| CREATE temporary TABLE if_not_exists database_table_name LPAR column_defs 
 		table_constraints RPAR without_rowid
-		{ $$ = {statement: 'CREATE TABLE', column_defs: $7, constraints:$8 };
+		{ $$ = {statement: 'CREATE TABLE', column_defs: $7, table_constraints:$8 };
 			yy.extend($$,$2);
 			yy.extend($$,$4);
 			yy.extend($$,$5);
 			yy.extend($$,$10);
 		}
 	;
-
 without_rowid
 	: 
+		{ $$ = undefined; }
 	| WITHOUT ROWID
+		{ $$ = {without_rowid: true} }
 	;
 
 temporary
 	:
 		{ $$ = undefined; }
-	|
+	| TEMPORARY
 		{ $$ = {temporary:true}; }
 	;
 
@@ -415,9 +424,9 @@ column_defs
 	;
 
 column_def
-	: literal type_name column_constraints
+	: name type_name column_constraints
 		{ $$ = {column:$1, constraints: $3}; yy.extend($$,$2); }
-	| literal type_name
+	| name type_name
 		{ $$ = {column:$1}; yy.extend($$,$2); }
 	;
 
@@ -425,30 +434,28 @@ type_name
 	: names
 		{ $$ = {type: $1}; }
 	| names LPAR signed_number RPAR
-		{ $$ = {type: $1, len: $3}; }
+		{ $$ = {type: $1, precision: $3}; }
 	| names LPAR signed_number COMMA signed_number RPAR
-		{ $$ = {type: $1, len: $3, precision:$5}; }
+		{ $$ = {type: $1, precision: $3, scale:$5}; }
 	;
 
 names 
-	: names literal
+	: names name
 		{ $$ = $1+' '+$2; }
-	| literal
+	| name
 		{ $$ =$1; }
 	;
 
 
 column_constraints
-	:	
-		{ $$ = undefined; } 
-	| column_constraints column_constraint
+	: column_constraints column_constraint
 		{ $$ = $1; $$.push($2); }
 	| column_constraint
 		{ $$ = [$1]; }
 	;
 
 column_constraint
-	: CONSTRAINT literal col_constraint
+	: CONSTRAINT name col_constraint
 		{ $$ = {constraint: $2}; yy.extend($$,$3); }
 	| col_constraint
 		{ $$ = $1; }
@@ -456,39 +463,55 @@ column_constraint
 
 col_constraint
 	: PRIMARY KEY asc_desc conflict_clause autoincrement
+		{ $$ = {type: 'PRIMARY KEY'}; yy.extend($$,$3); 
+			yy.extend($$,$4); yy.extend($$,$5); }
 	| NOT NULL conflict_clause
+		{ $$ = {type: 'NOT NULL'}; yy.extend($$,$3); }
 	| UNIQUE conflict_clause
+		{ $$ = {type: 'UNIQUE'}; yy.extend($$,$2); }
 	| CHECK LPAR expr RPAR
+		{ $$ = {type: 'CHECK', expr: $3}; }
 	| DEFAULT signed_number
-	| DEFAULT literal_value
+		{ $$ = {type: 'DEFAULT', number: $2}; }
+	| DEFAULT name_value
+		{ $$ = {type: 'DEFAULT', value: $2}; }
 	| DEFAULT LPAR expr RPAR
-	| COLLATE literal
+		{ $$ = {type: 'DEFAULT', expr: $3}; }
+	| COLLATE name
+		{ $$ = {type: 'COLLATE', collate: $2}; }
 	| foreign_key_clause
+		{ $$ = {type: 'FOREIGN KEY'}; yy.extend($$,$1); }
 	;
 
 asc_desc
 	:
+		{ $$ = undefined; }
 	| ASC
+		{ $$ = {order:'ASC'}; }
 	| DESC
+		{ $$ = {order:'DESC'}; }
 	;
 
 autoincrement
 	: 
+		{ $$ = undefined; }
 	| AUTOINCREMENT
+		{ $$ = {autoincrement:true}; }
 	;
 
+/*
 
 table_constraints
-	: table_constraints table_constraint
-		{ $$ = $1; $$.push($2); }
+	: table_constraints COMMA table_constraint
+		{ $$ = $1; $$.push($3); }
 	| COMMA table_constraint
-		{ $$ = $2; } 
+		{ $$ = [$2]; } 
 	|
 		{ $$ = []; }
 	;
 
 table_constraint
-	: CONSTRAINT literal tab_constraint
+	: CONSTRAINT name tab_constraint
 	| tab_constraint
 	;
 
@@ -507,10 +530,11 @@ conflict_clause
 	| ON CONFLICT IGNORE
 	| ON CONFLICT REPLACE
 	;
+/* 
 
 create_trigger_stmt
 	: CREATE temporary TRIGGER if_not_exists database_table_name before_after
-		delete_insert_update ON literal for_each_row when begin_trigger_end
+		delete_insert_update ON name for_each_row when begin_trigger_end
 	;
 	
 before_after 
@@ -553,7 +577,7 @@ create_view_stmt
 	;
 	
 create_virtual_table_stmt
-	: CREATE VIRTUAL TABLE if_not_exists database_table_name USING literal module_arguments_par
+	: CREATE VIRTUAL TABLE if_not_exists database_table_name USING name module_arguments_par
 	;
 	
 module_arguments_par
@@ -571,7 +595,7 @@ delete_stmt
 	
 qualified_table_name 
 	: database_table_name 
-	| database_table_name INDEXED BY literal
+	| database_table_name INDEXED BY name
 	| database_table_name NOT INDEXED
 	;	
 
@@ -585,11 +609,10 @@ recursive
 	;
 
 cte_tables
-	: literal
-	| literal LPAR columns RPAR
+	: name
+	| name LPAR columns RPAR
 	;
 
-/*
 delete_stmt
 	:
 	;
@@ -597,9 +620,8 @@ delete_stmt
 delete_stmt_limited
 	:
 	;
-*/
 detach_stmt
-	: DETACH database literal
+	: DETACH database name
 		{ $$ = {statement:'DETACH', database:$3}; }
 	;
 	
@@ -640,22 +662,22 @@ pragma_stmt
 	
 pragma_value
 	: signed_number
-	| literal
+	| name
 	| string_literal
 	;
 
 reindex_stmt
 	: REINDEX
-	| REINDEX literal
+	| REINDEX name
 	| REINDEX database_table_name
 	;
 	
 release_stmt
-	: RELEASE savepoint literal
+	: RELEASE savepoint name
 	;
 	
 rollback_stmt
-	: ROLLBACK transaction TO savepoint literal
+	: ROLLBACK transaction TO savepoint name
 	| ROLLBACK transaction
 	;
 	
@@ -665,7 +687,7 @@ savepoint
 	;
 
 savepoint_stmt
-	: SAVEPOINT literal
+	: SAVEPOINT name
 	;
 	
 select_stmt
@@ -690,7 +712,7 @@ column_expr_list
 	;
 
 column_expr
-	: literal EQ expr
+	: name EQ expr
 	;
 
 update_stmt_limited
@@ -703,16 +725,16 @@ vacuum_stmt
 	;
 	
 expr
-	: literal_value
+	: name_value
 	| bind_parameter
-	| literal
-	| database_table_name DOT literal
+	| name
+	| database_table_name DOT name
 	| unary_operator expr
 	| expr binary_operator expr
-	| literal LPAR function_args RPAR
+	| name LPAR function_args RPAR
 	| LPAR expr RPAR
 	| CAST LPAR expr AS type_name RPAR
-	| expr COLLATE literal
+	| expr COLLATE name
 	| expr not like_match expr escape_expr
 	| expr ISNULL
 	| expr NOTNULL
@@ -729,3 +751,4 @@ expr
 	| CASE when_then_list else END
 	;
 
+*/
