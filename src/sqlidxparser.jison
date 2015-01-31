@@ -39,8 +39,10 @@
 %%
 
 \[([^\]])*?\]									return 'BRALITERAL'
-(['](\\.|[^']|\\\')*?['])+                  	return 'QLITERAL'
-(["](\\.|[^"]|\\\")*?["])+                    	return 'STRING'
+(["](\\.|[^"]|\\\")*?["])+                    	return 'BRALITERAL'
+([`](\\.|[^"]|\\\")*?[`])+                    	return 'BRALITERAL'
+X(['](\\.|[^']|\\\')*?['])+                     return 'XSTRING'
+(['](\\.|[^']|\\\')*?['])+                  	return 'STRING'
 
 
 "--"(.*?)($|\r\n|\r|\n)							/* skip -- comments */
@@ -215,11 +217,12 @@
 /* %left unary_operator binary_operator  */
 
 %left OR
+%left BETWEEN
 %left AND
 %right NOT
-%left IS MATCH LIKE BETWEEN IN ISNULL NOTNULL NE EQ
+%left IS MATCH LIKE IN ISNULL NOTNULL NE EQ
+%left ESCAPE
 %left GT LE LT GE
-%right ESCAPE
 %left BITAND BITOR LSHIFT RSHIFT
 $left PLUS MINUS
 %left STAR SLASH REM
@@ -246,6 +249,8 @@ signed_number
 
 string_literal
 	: STRING
+		{ $$ = $1; }
+	| XSTRING
 		{ $$ = $1; }
 	;
 
@@ -543,6 +548,8 @@ col_constraint
 		{ $$ = {type: 'CHECK', expr: $3}; }
 	| DEFAULT signed_number
 		{ $$ = {type: 'DEFAULT', number: $2}; }
+	| DEFAULT string_literal
+		{ $$ = {type: 'DEFAULT', string: $2}; }
 	| DEFAULT name
 		{ $$ = {type: 'DEFAULT', value: $2}; }
 	| DEFAULT LPAR expr RPAR
@@ -604,17 +611,18 @@ tab_constraint
 
 foreign_key_clause
 	: REFERENCES name LPAR columns RPAR on_foreign_key_clause
+		{ $$ = {table: $2, columns: $4}; yy.extend($$, $6); }
 	;
 
 on_foreign_key_clause
 	:
 		{ $$ = null; }
 	| ON DELETE NO ACTION
-		{ $$ = null; }
+		{ $$ = {on_delete_no_action:true}; }
 	| ON UPDATE NO ACTION
-		{$$ = null; }
+		{$$ = {on_update_no_action:true}; }
 	| ON DELETE NO ACTION ON UPDATE NO ACTION
-		{$$ = null; }
+		{$$ = {on_delete_no_action:true, on_update_no_action:true}; }
 	;
 
 conflict_clause
@@ -806,9 +814,14 @@ cte_table_name
 	| name LPAR columns RPAR
 		{ $$ = {table:$1, columns: $3}}
 	;
+
 limit_clause
 	:
 		{ $$ = undefined; }
+	| ORDER BY ordering_terms 
+		{
+			$$ = {order_by:$3};
+		}
 	| LIMIT expr offset
 		{ 
 			$$ = {limit:$2};
@@ -816,7 +829,7 @@ limit_clause
 		}
 	| ORDER BY ordering_terms LIMIT expr offset
 		{ 
-			$$ = {order:$3, limit:$5};
+			$$ = {order_by:$3, limit:$5};
 			yy.extend($$, $6);
 		}
 	;
@@ -1001,7 +1014,7 @@ select_stmt
 	;
 
 compound_selects
-	: compound_selects compount_operator select
+	: compound_selects compound_operator select
 		{ $$ = $1; yy.extend($3,{compound:$2}); $$.push($3); }
 	| select
 		{ $$ = [$1]; }
@@ -1124,7 +1137,6 @@ join_type
 		{ $$ = {join_type: 'CROSS'}; }
 	;
 
-
 join_constraint
 	:
 		{ $$ = undefined; } 
@@ -1223,6 +1235,8 @@ vacuum_stmt
 expr
 	: literal_value
 		{ $$ = $1; }
+	| NULL
+		{ $$ = {type:'NULL'}; }
 	| bind_parameter
 		{ $$ = {bind_parameter: $1}; }
 	| name
@@ -1253,6 +1267,22 @@ expr
 	| expr RSHIFT expr
 		{ $$ = {op: 'RSHIFT', left: $1, right: $3}; }
 
+	| expr EQ expr
+		{ $$ = {op: 'EQ', left: $1, right: $3}; }
+	| expr NE expr
+		{ $$ = {op: 'NE', left: $1, right: $3}; }
+	| expr GT expr
+		{ $$ = {op: 'GT', left: $1, right: $3}; }
+	| expr GE expr
+		{ $$ = {op: 'GE', left: $1, right: $3}; }
+	| expr LT expr
+		{ $$ = {op: 'LT', left: $1, right: $3}; }
+	| expr LE expr
+		{ $$ = {op: 'LE', left: $1, right: $3}; }
+
+
+
+
 	| expr AND expr
 		{ $$ = {op: 'AND', left: $1, right: $3}; }
 	| expr OR expr
@@ -1270,15 +1300,90 @@ expr
 		{ $$ = {op: 'COLLATE', left: $1, right:$3};}
 	| expr ISNULL
 		{ $$ = {op: 'ISNULL', expr:$1}; }
+	| expr IS NULL
+		{ $$ = {op: 'ISNULL', expr:$1}; }
 	| expr NOTNULL
 		{ $$ = {op: 'NOTNULL', expr:$1}; }
+	| expr NOT NULL
+		{ $$ = {op: 'NOTNULL', expr:$1}; }
+	| expr IS NOT NULL
+		{ $$ = {op: 'NOTNULL', expr:$1}; }
 
+	| expr ESCAPE expr
+		{ $$ = {op:'ESCAPE', left: $1, right: $3}; }
+	| expr LIKE expr
+		{ 
+			$$ = {op: 'LIKE', left:$1, right:$3}; 
+			if(typeof $3 != 'undefined') {
+				if($3.op != 'ESCAPE') {
+					throw new Error('Should be ESCAPE');
+				} else {
+					$$.right = $3.left; 
+					$$.escape = $3.right; 
+				}
+			} 
+		}
+	| expr NOT LIKE expr
+		{ 
+			$$ = {op: 'LIKE', not:true, left:$1, right:$4}; 
+			if(typeof $4 != 'undefined') {
+				if($4.op != 'ESCAPE') {
+					throw new Error('Should be ESCAPE');
+				} else {
+					$$.right = $4.left; 
+					$$.escape = $4.right; 
+				}
+			} 
+		}
+	| expr MATCH expr
+		{ 
+			$$ = {op: 'MATCH', left:$1, right:$3}; 
+			if(typeof $3 != 'undefined') {
+				if($3.op != 'ESCAPE') {
+					throw new Error('Should be ESCAPE');
+				} else {
+					$$.right = $3.left; 
+					$$.escape = $3.right; 
+				}
+			} 
+		}
+	| expr NOT MATCH expr
+		{ 
+			$$ = {op: 'MATCH', not:true, left:$1, right:$4}; 
+			if(typeof $4 != 'undefined') {
+				if($4.op != 'ESCAPE') {
+					throw new Error('Should be ESCAPE');
+				} else {
+					$$.right = $4.left; 
+					$$.escape = $4.right; 
+				}
+			} 
+		}
+
+/*	| expr like_match expr escape_expr
+*/
 /*	| expr NOT NULL
 		{ $$ = {op: 'NOTNULL', expr:$1}; }
 	| expr IS not expr
-	| expr not like_match expr escape_expr
-	| expr not BETWEEN expr AND expr
 */
+/*	| expr not BETWEEN expr
+		{ 
+			if($4.op != 'AND') throw new Error('Wrong syntax of BETWEEN AND');
+			$$ = {op: 'BETWEEN', expr: $1, left:$4.left, right:$6.right}; 
+			yy.extend($$,$2); 
+		}
+*/	
+	| expr BETWEEN expr 
+		{ 
+			if($3.op != 'AND') throw new Error('Wrong syntax of BETWEEN AND');
+			$$ = {op: 'BETWEEN', expr: $1, left:$3.left, right:$3.right}; 
+			yy.extend($$,$2); 
+		}
+	| expr NOT BETWEEN expr 
+		{ 
+			if($4.op != 'AND') throw new Error('Wrong syntax of NOT BETWEEN AND');
+			$$ = {op: 'BETWEEN', not:true, expr: $1, left:$4.left, right:$4.right}; 
+		}
 	| expt not IN database_table_name
 		{ $$ = {op: 'IN', expr: $1}; yy.extend($$,$2); yy.extend($$,$4);}
 	| expt not IN LPAR RPAR 

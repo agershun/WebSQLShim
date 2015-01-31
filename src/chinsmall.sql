@@ -67,7 +67,7 @@ DROP TABLE IF EXISTS [Track];
    Create Tables
 ********************************************************************************/
 
-
+/*
 CREATE TABLE [Album]
 (
     [AlbumId] INTEGER  NOT NULL ,
@@ -77,7 +77,7 @@ CREATE TABLE [Album]
     FOREIGN KEY ([ArtistId]) REFERENCES [Artist] ([ArtistId]) 
 		ON DELETE NO ACTION ON UPDATE NO ACTION
 );
-/*
+
 CREATE TABLE [Artist]
 (
     [ArtistId] INTEGER  NOT NULL,
@@ -244,7 +244,7 @@ CREATE INDEX [IFK_TrackMediaTypeId] ON [Track] ([MediaTypeId]);
 /*******************************************************************************
    Populate Tables
 ********************************************************************************/
-/*
+
 INSERT INTO [Genre] ([GenreId], [Name]) VALUES (1, 'Rock');
 INSERT INTO [Genre] ([GenreId], [Name]) VALUES (2, 'Jazz');
 
