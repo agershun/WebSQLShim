@@ -44,7 +44,7 @@
 
 "--"(.*?)($|\r\n|\r|\n)							/* skip -- comments */
 
-\s+   									/* skip whitespace */
+\s+          									/* skip whitespace */
 
 'ABORT'			return 'ABORT'
 'ACTION'		return 'ACTION'
@@ -231,6 +231,7 @@ sql_stmt_list
 	|
 		{ $$ = undefined; } 
 	;
+
 
 sql_stmt
 	: sql_stmt_explain sql_stmt_stmt
