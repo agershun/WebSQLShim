@@ -290,6 +290,34 @@ database_table_name
 		{ $$ = {table:$1}; }
 	;
 
+database_pragma_name 
+	: name DOT name
+		{ $$ = {database:$1, pragma:$3}; }
+	| name
+		{ $$ = {pragma:$1}; }
+	;
+
+database_index_name 
+	: name DOT name
+		{ $$ = {database:$1, index:$3}; }
+	| name
+		{ $$ = {index:$1}; }
+	;
+
+database_trigger_name 
+	: name DOT name
+		{ $$ = {database:$1, trigger:$3}; }
+	| name
+		{ $$ = {trigger:$1}; }
+	;
+
+database_view_name 
+	: name DOT name
+		{ $$ = {database:$1, view:$3}; }
+	| name
+		{ $$ = {view:$1}; }
+	;
+
 alter_table_action
 	: RENAME TO name
 		{ $$ = {action: 'RENAME TO', new_table:$3}; }
@@ -349,14 +377,14 @@ transaction
 	;
 
 create_index_stmt
-	: CREATE INDEX if_not_exists database_table_name ON name 
+	: CREATE INDEX if_not_exists database_index_name ON name 
 	    LPAR columns RPAR where
 	    { $$ = {statement: 'CREATE INDEX', table:$6, columns:$8 }; 
 	    	yy.extend($$, $3); 
 	    	yy.extend($$, $4); 
 	    	yy.extend($$,$10);
 	    }
-	| CREATE UNIQUE INDEX if_not_exists database_table_name ON name 
+	| CREATE UNIQUE INDEX if_not_exists database_index_name ON name 
 	    LPAR columns RPAR where
 	    { $$ = {statement: 'CREATE INDEX', unique:true, table:$7, columns:$9 }; 
 	    	yy.extend($$, $2); 
@@ -499,134 +527,260 @@ autoincrement
 		{ $$ = {autoincrement:true}; }
 	;
 
-/*
 
 table_constraints
-	: table_constraints COMMA table_constraint
+	: 
+		{ $$ = undefined; }
+	| COMMA tab_constraints
+		{ $$ = $2; }
+	;
+
+tab_constraints
+	: tab_constraints COMMA table_constraint
 		{ $$ = $1; $$.push($3); }
-	| COMMA table_constraint
+	| table_constraint
 		{ $$ = [$2]; } 
-	|
-		{ $$ = []; }
 	;
 
 table_constraint
 	: CONSTRAINT name tab_constraint
+		{ $$ = {constraint: $2}; yy.extend($$,$3); } 
 	| tab_constraint
+		{ $$ = $1; }
 	;
 
 tab_constraint
 	: PRIMARY KEY LPAR columns RPAR conflict_clause
+		{ $$ = {type:'PRIMARY KEY', columns: $4}; yy.extend($$,$6); }
 	| UNIQUE LPAR columns RPAR conflict_clause
+		{ $$ = {type:'UNIQUE', columns: $3}; yy.extend($$,$5); }
 	| CHECK LPAR expr RPAR
+		{ $$ = {type:'CHECK', expr: $3}; }
 	| FOREIGN KEY LPAR columns RPAR foreign_key_clause
+		{ $$ = {type:'FOREIGN KEY', columns: $4}; yy.extend($$, $6); }
 	;
 
 conflict_clause
 	: 
+		{ $$ = undefined; }
 	| ON CONFLICT ROLLBACK
+		{ $$ = {conflict: 'ROLLBACK'}; }
 	| ON CONFLICT ABORT
+		{ $$ = {conflict: 'ABORT'}; }
 	| ON CONFLICT FAIL
+		{ $$ = {conflict: 'FAIL'}; }
 	| ON CONFLICT IGNORE
+		{ $$ = {conflict: 'IGNORE'}; }
 	| ON CONFLICT REPLACE
+		{ $$ = {conflict: 'REPLACE'}; }
 	;
-/* 
 
 create_trigger_stmt
-	: CREATE temporary TRIGGER if_not_exists database_table_name before_after
+	: CREATE temporary TRIGGER if_not_exists database_trigger_name before_after
 		delete_insert_update ON name for_each_row when begin_trigger_end
+		{
+			$$ = {statement: 'CREATE TRIGGER', table:$9};
+			yy.extend($$,$2);
+			yy.extend($$,$4);
+			yy.extend($$,$5);
+			yy.extend($$,$6);
+			yy.extend($$,$7);
+			yy.extend($$,$10);
+			yy.extend($$,$11);
+			yy.extend($$,$12);
+		}
 	;
+
 	
 before_after 
 	:
+		{ $$ = undefined; }
 	| BEFORE
+		{ $$ = {when: 'BEFORE'}; }
 	| AFTER
+		{ $$ = {when: 'AFTER'}; }
 	| INSTEAD OF
+		{ $$ = {when: 'INSTEAD OF'}; }
 	;
 
 delete_insert_update
 	: DELETE
+		{ $$ = {action: 'DELETE'}; }
 	| INSERT
+		{ $$ = {action: 'INSERT'}; }
 	| UPDATE 
+		{ $$ = {action: 'UPDATE'}; }
 	| UPDATE OF columns
+		{ $$ = {action: 'UPDATE', columns: $3}; }
 	;	
+
 
 for_each_row
 	:
+		{ $$ = undefined; }
 	| FOR EACH ROW
+		{ $$ = {for_each_row: true}; }
 	;
+
 
 begin_trigger_end
 	: BEGIN uids_stmts END
+		{ $$ = {stmts: $2}; }
 	;
 
 uids_stmts
-	: uids_stmts uids_stmt
-	| uids_stmt
+	: uids_stmts uids_stmt SEMICOLON
+		{ $$ = $1; $$.push($2); }
+	| uids_stmt SEMICOLON
+		{ $$ = [$2]; }
 	;
 
 uids_stmt
-	: update_stmt COMMA
-	| insert_stmt COMMA
-	| delete_stmt COMMA
-	| select_stmt COMMA
+	: update_stmt 
+		{ $$ = $1; }
+	| insert_stmt 
+		{ $$ = $1; }
+	| delete_stmt 
+		{ $$ = $1; }
+	| select_stmt 
+		{ $$ = $1; }
 	;
 
+
 create_view_stmt
-	: CREATE temporary VIEW if_not_exists database_table_name AS select_stmt
+	: CREATE temporary VIEW if_not_exists database_view_name AS select_stmt
+		{ 
+			$$ = {statement: 'CREATE VIEW', select: $7}; 
+			yy.extend($$,$2); 
+			yy.extend($$,$4); 
+			yy.extend($$,$5); 
+		}
 	;
+
 	
 create_virtual_table_stmt
 	: CREATE VIRTUAL TABLE if_not_exists database_table_name USING name module_arguments_par
+		{ 
+			$$ = {statement: 'CREATE VIRTUAL TABLE', module: $7}; 
+			yy.extend($$,$4); 
+			yy.extend($$,$5); 
+			yy.extend($$,$8); 
+		}
 	;
+
 	
 module_arguments_par
-	: LPAR module_arguments RPAR 
+	: 
+		{ $$ = undefined; }
+	| LPAR module_arguments RPAR 
+		{ $$ = {module_arguments: $2}; }
 	;
+
 
 module_arguments
 	: module_arguments COMMA module_argument
+		{ $$ = $1; $$.push($3); }
 	| module_argument
+		{ $$ = [$1]; }
 	;
 
 delete_stmt
-	: with_clause DELETE FROM qualified_table_name where
+	: with_clause DELETE FROM qualified_table_name where limit_clause
+		{ 
+			$$ = {statement:'DELETE'};
+			yy.extend($$,$1);
+			yy.extend($$,$4);
+			yy.extend($$,$5);
+		}
 	;
+
 	
 qualified_table_name 
 	: database_table_name 
+		{ $$ = $1; }
 	| database_table_name INDEXED BY name
+		{ $$ = $1; yy.extend($$, {indexed_by:$4}); }
 	| database_table_name NOT INDEXED
+		{ $$ = $1; yy.extend($$, {not_indexed:true}); }
 	;	
+
 
 with_clause
 	: WITH recursive cte_tables
+		{ $$ = {with: $3}; yy.extend($$,$2); }
 	;
 
 recursive
 	: RECURSIVE
+		{ $$ = {recursive:true}; }
 	|
+		{ $$ = undefined; }
 	;
 
 cte_tables
-	: name
+	: cte_table_name AS LPAR select_stmt RPAR
+		{ 	
+			yy.extend($1, {select:$4});
+			$$ = [$1];
+		}
+	| cte_tables COMMA cte_table_name AS LPAR select_stmt RPAR
+		{
+			yy.extend($3, {select:$6});		
+			$$ = $1;
+			$$.push($3);
+		}
+	;
+
+cte_table_name
+	: name 
+		{ $$ = {table: $1}; }
 	| name LPAR columns RPAR
+		{ $$ = {table:$1, columns: $3}}
+	;
+limit_clause
+	:
+		{ $$ = undefined; }
+	| LIMIT expr offset
+		{ 
+			$$ = {limit:$2};
+			yy.extend($$, $3);
+		}
+	| ORDER BY ordering_terms LIMIT expr offset
+		{ 
+			$$ = {order:$3, limit:$5};
+			yy.extend($$, $6);
+		}
 	;
 
-delete_stmt
-	:
+ordering_terms
+	: ordering_terms COMMA ordering_term
+		{ $$ = $1; $$.push($3); }
+	| ordering_term
+		{ $$ = [$1]; }
 	;
 
-delete_stmt_limited
-	:
+ordering_term
+	: name asc_desc
+		{ 
+			$$ = {term: $1}; 
+			yy.extend($$, $2);
+		}
 	;
 detach_stmt
-	: DETACH database name
+	: DETACH name
+		{ $$ = {statement:'DETACH', database:$3}; }
+	| DETACH DATABASE name
 		{ $$ = {statement:'DETACH', database:$3}; }
 	;
+
 	
 drop_index_stmt
-	: DROP TABLE if_exists database_table_name
+	: DROP INDEX if_exists database_index_name
+		{ 
+			$$ = {statement: 'DROP INDEX'}; 
+			yy.extend($$,$3);
+			yy.extend($$,$4);
+		} 
 	;
 	
 if_exists
@@ -638,78 +792,163 @@ if_exists
 
 drop_table_stmt
 	: DROP TABLE if_exists database_table_name
+		{ 
+			$$ = {statement: 'DROP TABLE'}; 
+			yy.extend($$,$3);
+			yy.extend($$,$4);
+		} 
 	;
-	
+
 drop_trigger_stmt
-	: DROP TRIGGER if_exists database_table_name
+	: DROP TRIGGER if_exists database_trigger_name
+		{ 
+			$$ = {statement: 'DROP TRIGGER'}; 
+			yy.extend($$,$3);
+			yy.extend($$,$4);
+		} 
 	;
+
+	
 	
 drop_view_stmt
-	: DROP VIEW if_exists database_table_name
+	: DROP VIEW if_exists database_view_name
+		{ 
+			$$ = {statement: 'DROP VIEW'}; 
+			yy.extend($$,$3);
+			yy.extend($$,$4);
+		} 
 	;
 	
 insert_stmt
-	: with insert INTO database_table_name columns_par VALUES values_list
-	| with insert INTO database_table_name columns_par select_stmt
-	| DEFAULT VALUES
-	;
-	
-pragma_stmt
-	: PRAGMA database_table_name 
-	| PRAGMA database_table_name EQ pragma_value
-	| PRAGMA database_table_name EQ LPAR pragma_value RPAR
-	;
-	
-pragma_value
-	: signed_number
-	| name
-	| string_literal
+	: with insert_action INTO database_table_name columns_par insert_values
+		{ 
+			$$ = {statement: 'INSERT', action: $2};
+			yy.extend($$,$1);
+			yy.extend($$,$4);
+			yy.extend($$,$5);
+			yy.extend($$,$6);
+		}
 	;
 
+insert_action
+	: INSERT
+		{ $$ = 'INSERT'; }
+	| REPLACE
+		{ $$ = 'REPLACE'; }
+	| INSERT OR REPLACE
+		{ $$ = 'INSERT OR REPLACE'; }
+	| INSERT OR ROLLBACK
+		{ $$ = 'INSERT OR ROLLBACK'; }
+	| INSERT OR ABORT
+		{ $$ = 'INSERT OR ABORT'; }
+	| INSERT OR FAIL
+		{ $$ = 'INSERT OR FAIL'; }
+	| INSERT OR IGNORE
+		{ $$ = 'INSERT OR IGNORE'; }
+	;
+
+insert_values
+	: VALUES values_list
+		{ $$ = {values: $2}; }
+	| select_stmt
+		{ $$ = {select:$1}; }
+	| DEFAULT VALUES
+		{ $$ = {default_values: true}; }
+	;
+
+columns_par
+	: 
+		{ $$ = undefined; }
+	| LPAR columns RPAR
+		{ $$ = {columns: $2}}
+	;
+pragma_stmt
+	: PRAGMA database_pragma_name 
+		{ $$ = {statement: 'PRAGMA'}; yy.extend($$,$1); }
+	| PRAGMA database_pragma_name EQ pragma_value
+		{ $$ = {statement: 'PRAGMA', value:$4}; yy.extend($$,$1); }
+	| PRAGMA database_pragma_name EQ LPAR pragma_value RPAR
+		{ $$ = {statement: 'PRAGMA', value:$5}; yy.extend($$,$1); }
+	;
+
+pragma_value
+	: signed_number
+		{ $$ = {number: $1}; }
+	| name
+		{ $$ = {name: $1}; }
+	| string_literal
+		{ $$ = {string: $1}; }
+	;
 reindex_stmt
 	: REINDEX
+		{ $$ = {statement: 'REINDEX'}; }
 	| REINDEX name
-	| REINDEX database_table_name
+		{ $$ = {statement: 'REINDEX', name: $2}; }
+	| REINDEX name DOT name
+		{ $$ = {statement: 'REINDEX', database: $2, name: $2}; }
 	;
 	
 release_stmt
 	: RELEASE savepoint name
+		{ $$ = {statement: 'RELEASE SAVEPOINT', savepoint: $3}; }
+	;
+
+savepoint
+	: 
+	| SAVEPOINT
 	;
 	
 rollback_stmt
 	: ROLLBACK transaction TO savepoint name
+		{ $$ = {statement: 'ROLLBACK TRANSACTION', savepoint: $3}; }
 	| ROLLBACK transaction
-	;
-	
-savepoint
-	: SAVEPOINT
-	|
+		{ $$ = {statement: 'ROLLBACK TRANSACTION'}; }
 	;
 
 savepoint_stmt
 	: SAVEPOINT name
+		{ $$ = {statement: 'SAVEPOINT', savepoint: $3}; }
 	;
 	
+/* 
 select_stmt
 	: SELECT 
 	;
-	
+*/
+
+
 update_stmt
-	: with UPDATE or_rollback qualified_table_name SET column_expr_list where
+	: with update_action qualified_table_name SET column_expr_list where
+		{ 
+			$$ = {statement: 'UPDATE', action: $2, set: $5};
+			yy.extend($$,$1);
+			yy.extend($$,$3);
+			yy.extend($$,$6);
+		}
 	;
 
-or_rollback
-	: OR ROLLBACK
-	| OR ABORT
-	| OR REPLACE
-	| OR FAIL
-	| OR IGNORE
+update_action
+	: UPDATE
+		{ $$ = 'UPDATE'}
+	| UPDATE OR ROLLBACK
+		{ $$ = 'UPDATE OR ROLLBACK'}
+	| UPDATE OR ABORT
+		{ $$ = 'UPDATE OR ABORT'}
+	| UPDATE OR REPLACE
+		{ $$ = 'UPDATE OR REPLACE'}
+	| UPDATE OR FAIL
+		{ $$ = 'UPDATE OR FAIL'}
+	| UPDATE OR IGNORE
+		{ $$ = 'UPDATE OR IGNORE'}
 	;
-
 column_expr_list
 	: column_expr_list COMMA column_expr
+		{ $$ = $1; $$.push($3); }
 	| column_expr
+		{ $$ = [$1]; }
 	;
+
+/*
 
 column_expr
 	: name EQ expr
@@ -718,12 +957,13 @@ column_expr
 update_stmt_limited
 	:
 	;
+*/
 	
 vacuum_stmt
 	: VACUUM
 		{ $$ = {statement: 'VACUUM'}; }
 	;
-	
+/*	
 expr
 	: name_value
 	| bind_parameter
