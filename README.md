@@ -3,11 +3,15 @@
 Version 0.0.2 (31.01.2015) [Changelog](CHANGELOG.md) [Release plan](RELEASES.md)
 
 
-**Warning:** Work in Progress.
+## Warning
+Work in Progress. 
+
+Only [WebSQL/SQLite SQL parser](src/sqliteparser.jison) is ready for the moment.
+
 
 ## Usage
 
-To shart use WebSQLShim add the following lines to your page:
+To use WebSQLShim add the [websqlshim.js](websqlshim.js) library to your page:
 ```html
 	<script src="websqlshim.js"></script>
 	<script>
@@ -21,11 +25,12 @@ To shart use WebSQLShim add the following lines to your page:
 	});
 	</script>
 ```
-In case you want to use WebSQLShim as WebSQL shim add this code:
+In case you want to use WebSQLShim as WebSQL shim add this replacement code:
 ```html
 	<script src="websqlshim.js"></script>
 	<script>
-		if(typeof openDatabase == 'undefined') openDatabase = WebSQLShim.openDatabase;
+		if (typeof openDatabase == 'undefined') openDatabase = WebSQLShim.openDatabase;
+		//...
 		var db = openDatabase("mybase",'0.1','',100000);
 		//...
 	</script>
@@ -39,8 +44,12 @@ WebSQL/SQLite language [Jison grammar file](https://github.com/agershun/WebSQLSh
 Use Mocha.js test package. To run tests in Node.js:
 
 ```
-    cd test/parser
+    cd test/main    // main function tests
     mocha .
+
+    cd test/parser  // parser tests
+    mocha .
+
 ```
 
 (c) 2015 Andrey Gerhsun, Nolan Lawson
