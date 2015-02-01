@@ -1,0 +1,31 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+    <title>Mocha</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../lib/mocha/mocha.css" />
+  </head>
+  <body>
+    <div id="mocha"></div>
+    <script src="../lib/assert/assert.js"></script>
+    <script src="../lib/mocha/mocha.js"></script>
+
+    
+    <script>mocha.setup('bdd')</script>
+
+    <script src="../websqlshim.js"></script>
+
+    <script src="main/test001.js"></script>
+    <script src="main/test002.js"></script>
+
+    <script src="parser/test001.js"></script>
+    <script src="parser/test002.js"></script>
+
+    <script src="shim/test001.js"></script>
+    <script>
+        if (window.mochaPhantomJS) { mochaPhantomJS.run(); }
+        else { mocha.run(); }
+    </script>
+  </body>
+</html>
