@@ -3,7 +3,7 @@ if(typeof exports == 'object') {
 	var assert = require('assert');
 }
 
-describe('Main 001. Read and parse SQLite databases', function(){
+describe('Main 001. openDatabase()', function(){
 	it('1.openDatabase() arguments errors', function(done){
 
 		// 4 or 5 parameters		

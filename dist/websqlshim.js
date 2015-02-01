@@ -1939,28 +1939,43 @@ var SQLTransactionSync = function(readonly){
 SQLTransaction.prototype.executeSql = function(sql, args, callback){
 	
 	// 1. Parse
-	var ast = parseSql(sql);
+	var ast = parse(sql);
+	console.log(ast);
 	// 2. Bind parameters
 	// bindParameters(ast);
 	//
 	// run(ast, params) 
 	//
-	var data = {
-		insertId:10,
-		rowsAffectd:10,
-		rows: [[1],[2],[3]]
-	};
-	callback(this, data);
+	var data = new SQLResultSet(); 
+	// {
+	// 	insertId:10,
+	// 	rowsAffectd:10,
+	// 	rows: [[1],[2],[3]]
+	// };
+	callback(data);
 };
 
 
 
 
-var SQLResultSet = function(){};
+var SQLResultSet = function(){
+	this.insertId = 10;
+	this.rowsAffectd = 10;
+	this.rows = new SQLResultSetRowList();
 
-var SQLResultSetRowList = function(){};
+};
 
-// Error / Exception classes
+var SQLResultSetRowList = function(){
+	this.length = 2;
+	this.data = [{a:1},{a:2}];
+};
+
+SQLResultSetRowList.prototype.item = function(idx){
+	return this.data[idx];
+};
+
+
+
 
 
 return WebSQLShim;
