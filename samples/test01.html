@@ -1,0 +1,52 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+    <title>WebSQL vs WebSQLShim</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <body>
+
+	<h1>Tests WebSQL vs WebSQLShim</h1>
+
+	<h3>Results</h3>
+	<p><div id="result"></div></p>
+
+
+    <script>
+
+    var sqls = [
+      'DROP TABLE IF EXISTS one',
+			'CREATE TABLE one (a INT)',
+			'INSERT INTO one VALUES (10)',
+			'SELECT * FROM one'
+    ];
+
+    test();
+
+
+	function test() {
+		var db = openDatabase('adb', '0.1', 'Test database', 1000000);
+		db.transaction(function(tx) {
+      sqls.forEach(function(sql,idx){
+        tx.executeSql(sql, [], function(tx,result){
+          console.log(idx, sql);
+          console.log('result:',result);
+          console.log('length:',result.rows.length);
+          if(result.rows.length > 0) {
+            for(var i=0;i<result.rows.length;i++) {
+              console.log('#',i,result.rows.item(i));
+            }
+          }
+        }, function(tx,error){
+          console.log(idx, sql);
+          console.log(error);
+        });
+      });
+		});
+	}
+
+
+    </script>
+  </body>
+</html>
