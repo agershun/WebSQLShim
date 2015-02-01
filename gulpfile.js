@@ -21,6 +21,8 @@ gulp.task('js-merge', function () {
     './src/25database.js',
     './src/27transaction.js',
     './src/29resultset.js',
+    './src/30statement.js',
+    './src/31params.js',
    	'./src/90finish.js',
     ])
     .pipe(concat('websqlshim.js'))
