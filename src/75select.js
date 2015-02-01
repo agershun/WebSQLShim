@@ -1,6 +1,4 @@
-var interpreter = {};
-
-interpreter.SELECT = function(ast, callback){
+interpreter['SELECT'] = function(ast, callback){
 	var res = new SQLResultSet();
 	res.insertId = undefined;
 	res.rowsAffected = 1;
