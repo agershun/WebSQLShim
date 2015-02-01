@@ -1947,7 +1947,7 @@ SQLTransaction.prototype.executeSql = function(sql, params, callback){
 	bindParameters(ast,params);
 	interpreter[ast[0].statement](ast, callback);
 
-	if(callback) callback(this);
+//	if(callback) callback(this);
 	// 2. Bind parameters
 	// bindParameters(ast);
 	//
@@ -2001,7 +2001,7 @@ interpreter['ALTER TABLE'] = function(ast, callback){
 
 
 
-interpreter['CREATE TABLE'] = function(){
+interpreter['CREATE TABLE'] = function(ast, callback){
 	console.log('CREATE TABLE');
 };
 
