@@ -11,7 +11,7 @@ var SQLTransactionSync = function(readonly){
 };
 */
 
-Transaction.prototype.executeSql = function(sql, args, callback){
+SQLTransaction.prototype.executeSql = function(sql, args, callback){
 	
 	// 1. Parse
 	var ast = parseSql(sql);
@@ -23,7 +23,7 @@ Transaction.prototype.executeSql = function(sql, args, callback){
 	var data = {
 		insertId:10,
 		rowsAffectd:10,
-		rows: [[1],[2],[3]];
+		rows: [[1],[2],[3]]
 	};
 	callback(this, data);
 };

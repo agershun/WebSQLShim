@@ -6,11 +6,11 @@
 
 (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
-        define(['./sqliteparser.js'], factory);
+        define([], factory);
     } else if (typeof exports === 'object') {
-        module.exports = factory(require('./sqliteparser.js').parser);
+        module.exports = factory();
     } else {
-        root.alasql = factory(root.parser);
+        root.alasql = factory();
     }
 }(this, function (parser) {
 
