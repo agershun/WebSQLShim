@@ -1,8 +1,8 @@
 {
   "name": "sqlidx",
-  "description": "SqlIdx - WebSQL and SQLite shim over IndexedDB",
-  "version": "0.0.0",
-  "author": "Andrey Gershun <agershun@gmail.com>",
+  "description": "WebSQLShim - WebSQL shim over IndexedDB",
+  "version": "0.0.1",
+  "author": "Andrey Gershun <agershun@gmail.com>, Nolan Lawson <nolan@nolanlawson.com>",
   "directories": {
     "test": "test"
   },
@@ -13,19 +13,20 @@
   ],
   "repository": {
     "type": "git",
-    "url": "http://github.com/agershun/sqlidx.git"
+    "url": "http://github.com/agershun/WebSQLShim.git"
   },
   "bugs": {
-    "url": "https://github.com/agershun/sqlidx/issues"
+    "url": "https://github.com/agershun/WebSQLShim/issues"
   },
-  "homepage": "https://github.com/agershun/sqlidx",
+  "homepage": "https://github.com/agershun/WebSQLShim",
   "main": "index.js",
   "scripts": {
     "test": "cd test && mocha ."
   },
   "keywords": [
     "sql",
-    "websql",
+    "WebSQL",
+    "shim",
     "javascript",
     "indexeddb",
     "parser",
@@ -33,7 +34,7 @@
     "DBMS",
     "data",
     "query",
-    "SQLite",
+    "SQLite"
   ],
   "license": "MIT"
 }

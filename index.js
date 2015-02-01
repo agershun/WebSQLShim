@@ -1,6 +1,6 @@
-var sqlidx = require('./sqlidx.js');
+var WebSQLShim = require('./websqlshim.js');
 
-for(var key in sqlidx) {
-  exports[key] = sqlidx[key]
+for(var key in WebSQLShim) {
+  exports[key] = WebSQLShim[key]
 }
 
