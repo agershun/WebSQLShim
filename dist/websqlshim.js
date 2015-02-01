@@ -1945,7 +1945,9 @@ SQLTransaction.prototype.executeSql = function(sql, params, callback){
 	}
 
 	bindParameters(ast,params);
-	interpret[ast[0].statement](ast, callback);
+	interpreter[ast[0].statement](ast, callback);
+
+	if(callback) callback(this);
 	// 2. Bind parameters
 	// bindParameters(ast);
 	//
@@ -1973,6 +1975,83 @@ var SQLResultSetRowList = function(){
 SQLResultSetRowList.prototype.item = function(idx){
 	return this.data[idx];
 };
+
+
+
+
+var interpreter = {};
+
+
+
+function bindParameters (ast, params) {
+	// Bind parameters in recursion to AST
+}
+
+interpreter['ALTER TABLE'] = function(ast, callback){
+
+};
+
+
+
+
+
+
+
+
+
+
+
+interpreter['CREATE TABLE'] = function(){
+	console.log('CREATE TABLE');
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+interpreter['INSERT'] = function(){
+	console.log('INSERT');
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+interpreter['SELECT'] = function(ast, callback){
+	var res = new SQLResultSet();
+	res.insertId = undefined;
+	res.rowsAffected = 1;
+	res.rows = new SQLResultSetRowsList();
+	res.rows.data = [{a:1},{a:2}];
+};
+
 
 
 

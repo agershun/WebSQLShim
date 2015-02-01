@@ -20,7 +20,9 @@ SQLTransaction.prototype.executeSql = function(sql, params, callback){
 	}
 
 	bindParameters(ast,params);
-	interpret[ast[0].statement](ast, callback);
+	interpreter[ast[0].statement](ast, callback);
+
+	if(callback) callback(this);
 	// 2. Bind parameters
 	// bindParameters(ast);
 	//
