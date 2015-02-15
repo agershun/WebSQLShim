@@ -5,7 +5,7 @@
  * 
  * The MIT License (MIT)
  *
- * Copyright (c) 2015 by Andrey Gershun, Nolan Lawson
+ * Copyright (c) 2015 by Andrey Gershun
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -1377,7 +1377,6 @@ expr
 		{ 
 			if($3.op != 'AND') throw new Error('Wrong syntax of BETWEEN AND');
 			$$ = {op: 'BETWEEN', expr: $1, left:$3.left, right:$3.right}; 
-			yy.extend($$,$2); 
 		}
 	| expr NOT BETWEEN expr 
 		{ 

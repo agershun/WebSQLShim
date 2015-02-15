@@ -1,3 +1,7 @@
+### Version 0.0.3 (02.02.2015 - ....02.2015)
+
+* Fixed BETWEEN mistake in grammar
+
 ### Version 0.0.2 (31.01.2015 - 01.02.2015)
 
 * Gulp installed

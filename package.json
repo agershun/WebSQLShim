@@ -1,8 +1,8 @@
 {
   "name": "sqlidx",
-  "description": "WebSQLShim - WebSQL shim over IndexedDB",
-  "version": "0.0.1",
-  "author": "Andrey Gershun <agershun@gmail.com>, Nolan Lawson <nolan@nolanlawson.com>",
+  "description": "WebSQLShim - SQLite/WebSQL Parser",
+  "version": "0.0.3",
+  "author": "Andrey Gershun <agershun@gmail.com>",
   "directories": {
     "test": "test"
   },

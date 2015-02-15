@@ -1,4 +1,4 @@
-# WebSQLShim - WebSQL shim over IndexedDB
+# WebSQLShim - SQLite/WebSQL SQL Parser
 
 Version 0.0.2 (31.01.2015) [Changelog](CHANGELOG.md) [Release plan](RELEASES.md)
 
@@ -38,7 +38,7 @@ In case you want to use WebSQLShim as WebSQL shim add this replacement code:
 
 ## SQL parser
 
-WebSQL/SQLite language [Jison grammar file](https://github.com/agershun/WebSQLShim/blob/master/src/sqlidxparser.jison) and JavaScript parser.
+WebSQL/SQLite language [Jison grammar file](src/sqliteparser.jison) and JavaScript parser.
 
 ## Tests
 Use Mocha.js test package. To run tests in Node.js:
@@ -52,4 +52,5 @@ Use Mocha.js test package. To run tests in Node.js:
 
 ```
 
-(c) 2015 Andrey Gerhsun, Nolan Lawson
+Andrey Gershun
+MIT LICENSE
