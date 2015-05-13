@@ -4,10 +4,9 @@ Version 0.0.2 (31.01.2015) [Changelog](CHANGELOG.md) [Release plan](RELEASES.md)
 
 
 ## Warning
-Work in Progress. 
+Sorry, work still in progress. Only [WebSQL/SQLite SQL parser](src/sqliteparser.jison) is ready for the moment.
 
-Only [WebSQL/SQLite SQL parser](src/sqliteparser.jison) is ready for the moment.
-
+You can also look at the [AlaSQL](http://github.com/agershun/alasql) project with IndexedDB support.
 
 ## Usage
 
