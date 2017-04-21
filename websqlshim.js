@@ -211,7 +211,7 @@ break;
 case 69:
  this.$ = {if_not_exists: true}; 
 break;
-case 70: case 82: case 112: case 153: case 172: case 224: case 255: case 258: case 268: case 323:
+case 70: case 82: case 112: case 153: case 172: case 224: case 253: case 255: case 258: case 268: case 323:
  this.$ = $$[$0-2]; this.$.push($$[$0]); 
 break;
 case 72:
@@ -706,9 +706,6 @@ break;
 case 252:
  this.$ = {group_by: $$[$0-2], having: $$[$0]}; 
 break;
-case 253:
- this.$ = $$[$0-2]; this.$.push($$[$0-2]); 
-break;
 case 260:
  
 			this.$ = {statement: 'UPDATE', action: $$[$0-5], set: $$[$0-2]};
@@ -900,7 +897,6 @@ case 309:
  
 			if($$[$0].op != 'AND') throw new Error('Wrong syntax of BETWEEN AND');
 			this.$ = {op: 'BETWEEN', expr: $$[$0-2], left:$$[$0].left, right:$$[$0].right}; 
-			yy.extend(this.$,$$[$0-1]); 
 		
 break;
 case 310:

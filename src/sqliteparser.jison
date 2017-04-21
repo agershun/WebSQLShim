@@ -1156,7 +1156,7 @@ group_by
 
 exprs
 	: exprs COMMA expr
-		{ $$ = $1; $$.push($1); }
+		{ $$ = $1; $$.push($3); }
 	| expr
 		{ $$ = [$1]; }
 	;
